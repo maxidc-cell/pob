@@ -78,24 +78,36 @@ let
                 {[Etiqueta = "TODAS", Valores = Empresas]}
             }),
 
-            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
+            // --- Optimización clave: filtrar Estadias por combo Segmento x
+            // Empresa UNA sola vez (y guardarlo en memoria con Table.Buffer),
+            // en vez de volver a filtrar toda la tabla por cada día. Con
+            // ~70 empresas y un mes de datos, filtrar la tabla completa
+            // (Fecha x Segmento x Empresa) en vez de (Segmento x Empresa)
+            // multiplica el trabajo por la cantidad de días y hacía que la
+            // consulta tardara varios minutos. ---
             TablaSeg = Table.FromRecords(CombosSegmento),
             TablaEmp = Table.FromRecords(CombosEmpresa),
+            ConEmpCombo = Table.AddColumn(TablaSeg, "Emp", each TablaEmp),
+            CombosExpandido = Table.ExpandTableColumn(ConEmpCombo, "Emp", {"Etiqueta", "Valores"}, {"EmpresaLabel", "EmpresaValores"}),
+            CombosRenombrado = Table.RenameColumns(CombosExpandido, {{"Etiqueta", "SegmentoLabel"}, {"Valores", "SegmentoValores"}}),
+            ConSubEstadias = Table.AddColumn(CombosRenombrado, "SubEstadias", (combo) =>
+                Table.Buffer(Table.SelectRows(Estadias, (fe) =>
+                    List.Contains(combo[SegmentoValores], fe[Segmento]) and List.Contains(combo[EmpresaValores], fe[Empresa])
+                ))
+            ),
 
-            ConSeg = Table.AddColumn(TablaDias, "Seg", each TablaSeg),
-            ExpSeg = Table.ExpandTableColumn(ConSeg, "Seg", {"Etiqueta", "Valores"}, {"SegmentoLabel", "SegmentoValores"}),
-            ConEmp = Table.AddColumn(ExpSeg, "Emp", each TablaEmp),
-            ExpEmp = Table.ExpandTableColumn(ConEmp, "Emp", {"Etiqueta", "Valores"}, {"EmpresaLabel", "EmpresaValores"}),
+            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
+            ConDias = Table.AddColumn(ConSubEstadias, "Dias", each TablaDias),
+            Grilla = Table.ExpandTableColumn(ConDias, "Dias", {"Fecha"}),
 
-            ConResultado = Table.AddColumn(ExpEmp, "Resultado", (filaActual) =>
+            ConResultado = Table.AddColumn(Grilla, "Resultado", (filaActual) =>
                 let
                     dayStart = DateTime.From(filaActual[Fecha]),
                     dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1)),
-                    solapan = Table.SelectRows(Estadias, (fe) =>
-                        List.Contains(filaActual[SegmentoValores], fe[Segmento])
-                        and List.Contains(filaActual[EmpresaValores], fe[Empresa])
-                        and fe[Inicio] < dayEnd
-                        and (fe[Fin] = null or fe[Fin] > dayStart)
+                    // filaActual[SubEstadias] ya viene filtrado por Segmento/Empresa
+                    // y es chico: acá sólo se recorta por el día.
+                    solapan = Table.SelectRows(filaActual[SubEstadias], (fe) =>
+                        fe[Inicio] < dayEnd and (fe[Fin] = null or fe[Fin] > dayStart)
                     ),
                     presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {"IdPersona"}))),
                     maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)

@@ -827,24 +827,36 @@ Private Function Codigo_08_POB_Diario() As String
     s = s & "                {[Etiqueta = ""TODAS"", Valores = Empresas]}" & vbCrLf
     s = s & "            })," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
+    s = s & "            // --- Optimización clave: filtrar Estadias por combo Segmento x" & vbCrLf
+    s = s & "            // Empresa UNA sola vez (y guardarlo en memoria con Table.Buffer)," & vbCrLf
+    s = s & "            // en vez de volver a filtrar toda la tabla por cada día. Con" & vbCrLf
+    s = s & "            // ~70 empresas y un mes de datos, filtrar la tabla completa" & vbCrLf
+    s = s & "            // (Fecha x Segmento x Empresa) en vez de (Segmento x Empresa)" & vbCrLf
+    s = s & "            // multiplica el trabajo por la cantidad de días y hacía que la" & vbCrLf
+    s = s & "            // consulta tardara varios minutos. ---" & vbCrLf
     s = s & "            TablaSeg = Table.FromRecords(CombosSegmento)," & vbCrLf
     s = s & "            TablaEmp = Table.FromRecords(CombosEmpresa)," & vbCrLf
+    s = s & "            ConEmpCombo = Table.AddColumn(TablaSeg, ""Emp"", each TablaEmp)," & vbCrLf
+    s = s & "            CombosExpandido = Table.ExpandTableColumn(ConEmpCombo, ""Emp"", {""Etiqueta"", ""Valores""}, {""EmpresaLabel"", ""EmpresaValores""})," & vbCrLf
+    s = s & "            CombosRenombrado = Table.RenameColumns(CombosExpandido, {{""Etiqueta"", ""SegmentoLabel""}, {""Valores"", ""SegmentoValores""}})," & vbCrLf
+    s = s & "            ConSubEstadias = Table.AddColumn(CombosRenombrado, ""SubEstadias"", (combo) =>" & vbCrLf
+    s = s & "                Table.Buffer(Table.SelectRows(Estadias, (fe) =>" & vbCrLf
+    s = s & "                    List.Contains(combo[SegmentoValores], fe[Segmento]) and List.Contains(combo[EmpresaValores], fe[Empresa])" & vbCrLf
+    s = s & "                ))" & vbCrLf
+    s = s & "            )," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "            ConSeg = Table.AddColumn(TablaDias, ""Seg"", each TablaSeg)," & vbCrLf
-    s = s & "            ExpSeg = Table.ExpandTableColumn(ConSeg, ""Seg"", {""Etiqueta"", ""Valores""}, {""SegmentoLabel"", ""SegmentoValores""})," & vbCrLf
-    s = s & "            ConEmp = Table.AddColumn(ExpSeg, ""Emp"", each TablaEmp)," & vbCrLf
-    s = s & "            ExpEmp = Table.ExpandTableColumn(ConEmp, ""Emp"", {""Etiqueta"", ""Valores""}, {""EmpresaLabel"", ""EmpresaValores""})," & vbCrLf
+    s = s & "            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
+    s = s & "            ConDias = Table.AddColumn(ConSubEstadias, ""Dias"", each TablaDias)," & vbCrLf
+    s = s & "            Grilla = Table.ExpandTableColumn(ConDias, ""Dias"", {""Fecha""})," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "            ConResultado = Table.AddColumn(ExpEmp, ""Resultado"", (filaActual) =>" & vbCrLf
+    s = s & "            ConResultado = Table.AddColumn(Grilla, ""Resultado"", (filaActual) =>" & vbCrLf
     s = s & "                let" & vbCrLf
     s = s & "                    dayStart = DateTime.From(filaActual[Fecha])," & vbCrLf
     s = s & "                    dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1))," & vbCrLf
-    s = s & "                    solapan = Table.SelectRows(Estadias, (fe) =>" & vbCrLf
-    s = s & "                        List.Contains(filaActual[SegmentoValores], fe[Segmento])" & vbCrLf
-    s = s & "                        and List.Contains(filaActual[EmpresaValores], fe[Empresa])" & vbCrLf
-    s = s & "                        and fe[Inicio] < dayEnd" & vbCrLf
-    s = s & "                        and (fe[Fin] = null or fe[Fin] > dayStart)" & vbCrLf
+    s = s & "                    // filaActual[SubEstadias] ya viene filtrado por Segmento/Empresa" & vbCrLf
+    s = s & "                    // y es chico: acá sólo se recorta por el día." & vbCrLf
+    s = s & "                    solapan = Table.SelectRows(filaActual[SubEstadias], (fe) =>" & vbCrLf
+    s = s & "                        fe[Inicio] < dayEnd and (fe[Fin] = null or fe[Fin] > dayStart)" & vbCrLf
     s = s & "                    )," & vbCrLf
     s = s & "                    presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {""IdPersona""})))," & vbCrLf
     s = s & "                    maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)" & vbCrLf
