@@ -77,6 +77,32 @@ que tomé, con su razón, para que las puedas revisar:
    fichadas de la misma persona en el mismo minuto se procesan en el orden
    en que aparecen en el archivo de origen (no hay manera de saber cuál fue
    "antes" con ese nivel de precisión).
+7. **Clasificación de `tLectores` corregida contra datos reales**: la
+   precarga original (basada sólo en la muestra) clasificaba como `INTERNO`
+   varios lectores que en la operación real son accesos válidos:
+   - `AP - PlantaAcc Puerta 4/6/9` y `AP - PlantaAccPeato-`: hay personal
+     (por ejemplo, de la empresa Víctor Contreras) que entra y sale
+     **exclusivamente** por estos accesos secundarios, no por la portería
+     principal. Ahora son INGRESO/EGRESO reales.
+   - Toda la familia `LLY - Proc - ...` (KM 0, Porton - Mpl, Porton 1 Zona
+     GEKs, Porton 2 Zona Tanque, Puerta 1 Acceso Peatonal): mismo caso para
+     Loma Las Yeguas.
+   - Las puertas de emergencia (`MP_...`): en el uso real sólo se marcan al
+     evacuar, nunca para entrar. Tratarlas como `INTERNO` dejaba a la gente
+     contada como "presente" indefinidamente después de una evacuación real
+     (se verificó un caso concreto: un grupo marcó varias puertas de
+     emergencia de LLY una noche y, sin esta corrección, seguían apareciendo
+     presentes 9 días después). Ahora se tratan como `EGRESO`.
+
+   Esta corrección se validó contra un archivo de producción real,
+   comparando día por día y yacimiento por yacimiento contra una foto de
+   las 13hs conocida de antemano: los 14 puntos de control (7 días × 2
+   yacimientos) pasaron de un error de 26%-75% a un error de -7%/+10%
+   (la mayoría dentro de ±5%). El detalle de esa validación puntual no
+   quedó en el repo (se hizo sobre un archivo de producción, no sobre la
+   muestra), pero el criterio adoptado sí: ver `validacion/config.py`.
+   **Si tu operación tiene otros lectores "secundarios" parecidos que no
+   están en esta lista, agregalos a mano en `tLectores` de la hoja Config.**
 
 ## Limitaciones conocidas
 

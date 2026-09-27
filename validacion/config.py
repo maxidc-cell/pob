@@ -68,6 +68,20 @@ _INGRESO = [
     "AP - PortPasVehic ENT 01-1-03",
     "LLY- Porteria Exterior ENT 02-1-02",
     "LLY- Porteria Vehiculos ENT 02-1-04",
+    # Accesos secundarios a planta: personal que entra/sale EXCLUSIVAMENTE
+    # por acá (confirmado contra datos reales de producción, no eran
+    # lectores internos como se asumió al precargar la tabla por primera
+    # vez). Ver README, "Supuestos y decisiones tomadas".
+    "AP - PlantaAcc Puerta 4 ENT 08-0-00",
+    "AP - PlantaAcc Puerta 6 ENT 09-0-00",
+    "AP - PlantaAcc Puerta 9 ENT 07-0-00",
+    "AP - PlantaAccPeato-ENT 04-1-01",
+    "LLY - Proc - KM 0 ENT 09-0-02",
+    "LLY - Proc - KM 0 ENT DESCONEC 09-0-00",
+    "LLY - Proc - Porton - Mpl - ENT 01-0-01",
+    "LLY - Proc - Porton 1 Zona GEKs ENT 07-0-00",
+    "LLY - Proc - Porton 2 Zona Tanque ENT 08-0-02",
+    "LLY - Proc - Puerta 1 Acceso Peatonal ENT 08-0-00",
 ]
 
 _EGRESO = [
@@ -75,6 +89,39 @@ _EGRESO = [
     "AP - PortPasVehic SAL 01-1-00",
     "LLY- Porteria Exterior SAL 02-1-03",
     "LLY- Porteria Vehiculos SAL 02-1-05",
+    # Contraparte de salida de los accesos secundarios de arriba.
+    "AP - PlantaAcc Puerta 4 SAL 08-0-01",
+    "AP - PlantaAcc Puerta 6 SAL 09-0-01",
+    "AP - PlantaAcc Puerta 9 SAL 07-0-01",
+    "AP - PlantaAccPeato- SAL 04-1-00",
+    "LLY - Proc - KM 0 SAL 09-0-01",
+    "LLY - Proc - Porton - Mpl - SAL 01-0-02",
+    "LLY - Proc - Porton 1 Zona GEKs SAL 07-0-01",
+    "LLY - Proc - Porton 2 Zona Tanque SAL 08-0-03",
+    "LLY - Proc - Puerta 1 Acceso Peatonal SAL 08-0-01",
+    # Puertas de emergencia (MP_...): en el uso real sólo se marcan al
+    # evacuar, nunca para entrar. Tratarlas como INTERNO dejaba a la gente
+    # "presente" indefinidamente después de una evacuación real (verificado
+    # con datos de producción: un grupo marcó varias puertas de emergencia
+    # de LLY la noche del 5/9 y sin esta corrección seguían apareciendo
+    # presentes 9 días después). Se tratan como EGRESO.
+    "MP_AP - Emerg*Brigada 02-0-01",
+    "MP_AP - Emerg*Cancha Basket 10-1-03",
+    "MP_AP - Emerg*Comedor 13-0-00",
+    "MP_AP - Emerg*Enfermeria 02-0-00",
+    "MP_AP - Emerg*Hotel 03-0-01",
+    "MP_AP - Emerg*Oficinas 03-0-00",
+    "MP_AP - Emerg*Porteria 01-1-04",
+    "MP_AP - Emerg*Puerta 6 09-0-02",
+    "MP_AP - Emerg*Puerta 9 07-0-02",
+    "MP_AP - Emerg*SalaCtrl 04-1-02",
+    "MP_LLY- Emerg* Brigada 06-0-00",
+    "MP_LLY- Emerg* Enfermeria 02-2-01",
+    "MP_LLY- Emerg* Hotel 03-1-06",
+    "MP_LLY- Emerg* Oficina PCS 05-1-05",
+    "MP_LLY- Emerg* Porteria 02-2-00",
+    "MP_LLY- Emerg* Sala control 05-1-04",
+    "MP_LLY- Emerg* WorkShop 04-2-02",
 ]
 
 _COMEDOR = [
@@ -82,9 +129,10 @@ _COMEDOR = [
     "LLY - COMEDOR 03-1-07",
 ]
 
-# Resto de los lectores de la muestra (90), precargados como INTERNO. Incluye
-# las puertas de emergencia MP_..., que son INTERNO aunque su nombre tenga
-# "Emerg*Comedor": no son molinetes de comedor.
+# Resto de los lectores de la muestra, precargados como INTERNO: habitaciones,
+# oficinas y salas dentro del predio (no son accesos al yacimiento ni al
+# comedor). Los accesos secundarios a planta y las puertas de emergencia
+# están arriba, en _INGRESO/_EGRESO (ver comentarios ahí).
 _INTERNO = [
     "AP - ALA ENSI ENT 05-0-00",
     "AP - ALA ENSI SAL 05-0-01",
@@ -98,14 +146,6 @@ _INTERNO = [
     "AP - LABORATORIO ELECTRICO SAL 04-1-07",
     "AP - Oficinas Ent 02-0-02",
     "AP - Oficinas Sal 02-0-03",
-    "AP - PlantaAcc Puerta 4 ENT 08-0-00",
-    "AP - PlantaAcc Puerta 4 SAL 08-0-01",
-    "AP - PlantaAcc Puerta 6 ENT 09-0-00",
-    "AP - PlantaAcc Puerta 6 SAL 09-0-01",
-    "AP - PlantaAcc Puerta 9 ENT 07-0-00",
-    "AP - PlantaAcc Puerta 9 SAL 07-0-01",
-    "AP - PlantaAccPeato- SAL 04-1-00",
-    "AP - PlantaAccPeato-ENT 04-1-01",
     "AP - PlantaSalaCtrl- ENT 04-1-03",
     "AP - PlantaSalaCtrl- SAL 04-1-04",
     "AP - Sala Técnica LLP ENT 17-0-00",
@@ -118,17 +158,6 @@ _INTERNO = [
     "AP - Salas Eléctricas Oeste SAL 14-1-01",
     "AP - Taller Entrada 11-0-00",
     "AP - Taller Salida 11-0-01",
-    "LLY - Proc - KM 0 ENT 09-0-02",
-    "LLY - Proc - KM 0 ENT DESCONEC 09-0-00",
-    "LLY - Proc - KM 0 SAL 09-0-01",
-    "LLY - Proc - Porton - Mpl - ENT 01-0-01",
-    "LLY - Proc - Porton - Mpl - SAL 01-0-02",
-    "LLY - Proc - Porton 1 Zona GEKs ENT 07-0-00",
-    "LLY - Proc - Porton 1 Zona GEKs SAL 07-0-01",
-    "LLY - Proc - Porton 2 Zona Tanque ENT 08-0-02",
-    "LLY - Proc - Porton 2 Zona Tanque SAL 08-0-03",
-    "LLY - Proc - Puerta 1 Acceso Peatonal ENT 08-0-00",
-    "LLY - Proc - Puerta 1 Acceso Peatonal SAL 08-0-01",
     "LLY- Deposito ENT 04-1-04",
     "LLY- Deposito SAL 04-1-05",
     "LLY- Gimnasio ENT 02-1-06",
@@ -159,23 +188,6 @@ _INTERNO = [
     "LLY-Sala Técnica MP ENT 11-1-00",
     "LLY-Sala Técnica MP SAL 11-1-01",
     "LLY-Salida Pasillo SR1 SAL 10-0-03",
-    "MP_AP - Emerg*Brigada 02-0-01",
-    "MP_AP - Emerg*Cancha Basket 10-1-03",
-    "MP_AP - Emerg*Comedor 13-0-00",
-    "MP_AP - Emerg*Enfermeria 02-0-00",
-    "MP_AP - Emerg*Hotel 03-0-01",
-    "MP_AP - Emerg*Oficinas 03-0-00",
-    "MP_AP - Emerg*Porteria 01-1-04",
-    "MP_AP - Emerg*Puerta 6 09-0-02",
-    "MP_AP - Emerg*Puerta 9 07-0-02",
-    "MP_AP - Emerg*SalaCtrl 04-1-02",
-    "MP_LLY- Emerg* Brigada 06-0-00",
-    "MP_LLY- Emerg* Enfermeria 02-2-01",
-    "MP_LLY- Emerg* Hotel 03-1-06",
-    "MP_LLY- Emerg* Oficina PCS 05-1-05",
-    "MP_LLY- Emerg* Porteria 02-2-00",
-    "MP_LLY- Emerg* Sala control 05-1-04",
-    "MP_LLY- Emerg* WorkShop 04-2-02",
 ]
 
 LECTORES = {}
