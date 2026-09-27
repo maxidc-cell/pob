@@ -74,8 +74,16 @@ Vas a necesitar estos dos datos para completar la hoja Config.
    cargadas igual (lo que suele fallar es sólo la parte visual, por
    diferencias entre versiones de Excel). Segui con la sección **3. Armar
    el dashboard a mano** más abajo para completar esa parte.
-9. Podés volver a correr la macro las veces que quieras (por ejemplo si
-   cambiaste algo en Config): reemplaza lo que ya existía, no duplica nada.
+9. **Paso manual obligatorio, incluso con la macro**: click derecho sobre la
+   segmentación "Segmento" → `Configuración de segmentación de datos` →
+   tildá **"Selección única"**. Excel no da una forma confiable de
+   automatizar esto por VBA para segmentaciones normales (no basadas en
+   modelo de datos), así que la macro no lo hace; sin este paso, se puede
+   seleccionar `AP` y `LLY` a la vez y mezclar esas filas con `TOTAL` sin
+   darte cuenta.
+10. Podés volver a correr la macro las veces que quieras (por ejemplo si
+    cambiaste algo en Config): reemplaza lo que ya existía, no duplica nada
+    (el paso 9 sí hay que repetirlo si la segmentación se recreó).
 
 ## Camino B — Manual (sin macro)
 

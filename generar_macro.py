@@ -240,17 +240,12 @@ Private Function ArmarDashboard(wb As Workbook) As Boolean
     AgregarSegmentacion wb, wsDash, pts, "Segmento", wsDash.Range("A1")
     AgregarSegmentacion wb, wsDash, pts, "Empresa", wsDash.Range("F1")
 
-    ' La segmentación de Segmento tiene que ser de selección única (no
-    ' mezclar filas TOTAL con AP/LLY).
-    Dim scSeg As SlicerCache
-    On Error Resume Next
-    Set scSeg = wb.SlicerCaches("Slicer_Segmento")
-    If Not scSeg Is Nothing Then scSeg.CrossFilterType = xlCrossFilterShowAll
-    Dim slItem As Slicer
-    For Each slItem In wb.SlicerCaches("Slicer_Segmento").Slicers
-        slItem.Cache.CrossFilterType = xlCrossFilterShowAll
-    Next slItem
-    On Error GoTo 0
+    ' NOTA: la segmentación de Segmento tiene que quedar en "Selección
+    ' única" (para no mezclar filas TOTAL con AP/LLY), pero esa opción no
+    ' tiene una propiedad simple y estable en el modelo de objetos de VBA
+    ' entre versiones de Excel, así que queda como paso manual: click
+    ' derecho sobre la segmentación "Segmento" > Configuración de
+    ' segmentación de datos > tildar "Selección única" (ver GUIA_INSTALACION.md).
 
     ' Gráficos, uno por dinámica.
     AgregarGrafico wsDash, ptDiario, wsDash.Range("A45"), xlLine, "POB diario (presentes)"
