@@ -21,9 +21,15 @@ let
     },
     Origen = Table.Buffer(Table.Distinct(#"02_Origen", ColumnasOriginales)),
 
+    // Filas sin Fecha o sin Hora no se pueden fichar (puede pasar en un
+    // archivo de prueba armado a mano, con alguna fila vacía o incompleta
+    // dentro del rango usado de la hoja). Se descartan acá, antes de
+    // intentar armar FechaHora, para no romper con "cannot convert null".
+    SinFilasIncompletas = Table.SelectRows(Origen, each [Fecha] <> null and [Hora] <> null),
+
     // --- FechaHora: soporta Fecha/Hora como texto "d/m/yyyy" y "HH:mm", y
     // también como fecha/hora nativa si Excel ya las autodetectó así. ---
-    ConFechaHora = Table.AddColumn(Origen, "FechaHora", each
+    ConFechaHora = Table.AddColumn(SinFilasIncompletas, "FechaHora", each
         let
             valorFecha = [Fecha],
             fechaBase =
@@ -45,15 +51,18 @@ let
     ),
 
     // --- Lector normalizado: Trim + colapsar espacios dobles a uno solo ---
+    // "?? """ antes de Text.Trim/Text.Split: esas funciones no toleran null
+    // (tiran "cannot convert null to type Text"), y una fila con el lector
+    // en blanco no tiene por qué frenar toda la consulta.
     ConLector = Table.AddColumn(ConFechaHora, "Lector", each
-        Text.Combine(List.Select(Text.Split(Text.Trim([#"Reader Description"]), " "), each _ <> ""), " "),
+        Text.Combine(List.Select(Text.Split(Text.Trim([#"Reader Description"] ?? ""), " "), each _ <> ""), " "),
         type text
     ),
 
     // --- Clasificación de lector: join contra tLectores (Lector | Tipo) ---
     TablaLectores = Table.TransformColumns(
         Excel.CurrentWorkbook(){[Name="tLectores"]}[Content],
-        {{"Lector", each Text.Combine(List.Select(Text.Split(Text.Trim(_), " "), each _ <> ""), " "), type text}}
+        {{"Lector", each Text.Combine(List.Select(Text.Split(Text.Trim(_ ?? ""), " "), each _ <> ""), " "), type text}}
     ),
     ConTipoLector = Table.NestedJoin(ConLector, {"Lector"}, TablaLectores, {"Lector"}, "_lectorRef", JoinKind.LeftOuter),
     ConTipoLector2 = Table.AddColumn(ConTipoLector, "TipoLector", each
@@ -73,7 +82,7 @@ let
     // --- IdPersona: IGG sin espacios, o "CRED_" & Credencial si no hay IGG ---
     ConIdPersona = Table.AddColumn(ConSegmento, "IdPersona", each
         let iggLimpio = if [IGG] = null then "" else Text.Trim([IGG])
-        in if iggLimpio = "" then "CRED_" & Text.Trim([Credencial]) else iggLimpio,
+        in if iggLimpio = "" then "CRED_" & Text.Trim([Credencial] ?? "") else iggLimpio,
         type text
     ),
 

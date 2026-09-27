@@ -19,7 +19,17 @@ let
 
     ArchivosLeidos = List.Count(List.Distinct(Origen[ArchivoOrigen])),
     FilasTotales = Table.RowCount(Origen),
-    DuplicadosEliminados = FilasTotales - Table.RowCount(Limpio),
+
+    // Recalcula el dedup por separado (mismas 10 columnas que 03_Limpieza)
+    // para no mezclar "duplicados" con "filas sin Fecha/Hora": 03_Limpieza
+    // saca ambas cosas, pero acá interesa reportarlas por separado.
+    ColumnasOriginales = {
+        "Fecha", "Hora", "IGG", "Apellido", "Nombre", "Credencial",
+        "Evento", "SEGMENTO", "EMPRESA", "Reader Description"
+    },
+    Deduplicado = Table.Distinct(Origen, ColumnasOriginales),
+    DuplicadosEliminados = FilasTotales - Table.RowCount(Deduplicado),
+    FilasSinFechaHora = Table.RowCount(Table.SelectRows(Deduplicado, each [Fecha] = null or [Hora] = null)),
 
     LectoresUsados = List.Distinct(Limpio[Lector]),
     LectoresConocidos = TablaLectores[Lector],
@@ -49,6 +59,7 @@ let
             {"Archivos leídos", ArchivosLeidos},
             {"Filas totales (antes de deduplicar)", FilasTotales},
             {"Duplicados eliminados", DuplicadosEliminados},
+            {"Filas sin Fecha/Hora descartadas", FilasSinFechaHora},
             {"Lectores sin clasificar", TextoLectoresSinClasificar},
             {"Marcas sin IGG identificadas por credencial", MarcasPorCredencial},
             {"Personas con más de una credencial", PersonasMultiCredencial},

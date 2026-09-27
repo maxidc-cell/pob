@@ -230,6 +230,31 @@ def test_lector_con_doble_espacio_matchea_la_tabla_normalizada():
 # IdPersona e IGG vacío
 # ===========================================================================
 
+def test_filas_sin_fecha_o_sin_hora_se_descartan_sin_romper():
+    filas = [
+        {
+            "Fecha": "1/9/2026", "Hora": "08:00", "IGG": "D1", "Apellido": "PEREZ",
+            "Nombre": "JUAN", "Credencial": 111, "Evento": "Access Granted",
+            "SEGMENTO": "AGUADA PICHANA", "EMPRESA": "ACME", "Reader Description": "AP - PortExter ENT 01-1-01",
+        },
+        {
+            "Fecha": None, "Hora": "09:00", "IGG": "D2", "Apellido": "GOMEZ",
+            "Nombre": "ANA", "Credencial": 222, "Evento": "Access Granted",
+            "SEGMENTO": "AGUADA PICHANA", "EMPRESA": "ACME", "Reader Description": "AP - PortExter ENT 01-1-01",
+        },
+        {
+            "Fecha": "1/9/2026", "Hora": None, "IGG": "D3", "Apellido": "RUIZ",
+            "Nombre": "LUIS", "Credencial": 333, "Evento": "Access Granted",
+            "SEGMENTO": "AGUADA PICHANA", "EMPRESA": "ACME", "Reader Description": "AP - PortExter ENT 01-1-01",
+        },
+    ]
+    df_raw = pd.DataFrame(filas)
+    df_todo, control = lp.limpiar_datos(df_raw)
+    assert control["filas_sin_fecha_hora_descartadas"] == 2
+    assert len(df_todo) == 1
+    assert df_todo.iloc[0]["IdPersona"] == "D1"
+
+
 def test_igg_vacio_usa_credencial_como_identificador():
     fila = {
         "Fecha": "1/9/2026", "Hora": "08:00", "IGG": None, "Apellido": "PEREZ",

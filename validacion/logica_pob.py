@@ -66,16 +66,24 @@ def _parsear_fecha(serie: pd.Series) -> pd.Series:
 
 
 def _parsear_hora(serie: pd.Series) -> pd.Series:
-    """Hora viene como texto HH:mm. Devuelve un timedelta desde las 00:00."""
+    """Hora viene como texto HH:mm. Devuelve un timedelta desde las 00:00.
+
+    Una celda vacía (None/NaN) devuelve NaT (no 00:00): así la fila queda
+    detectable como incompleta más adelante, en vez de fecharse en
+    silencio a medianoche.
+    """
     if pd.api.types.is_datetime64_any_dtype(serie):
         return pd.to_timedelta(serie.dt.strftime("%H:%M:%S"))
     if hasattr(serie, "dtype") and str(serie.dtype).startswith("timedelta"):
         return serie
+    vacio = serie.isna()
     texto = serie.astype(str).str.strip()
     partes = texto.str.split(":", expand=True)
     horas = pd.to_numeric(partes[0], errors="coerce").fillna(0).astype(int)
     minutos = pd.to_numeric(partes[1], errors="coerce").fillna(0).astype(int) if partes.shape[1] > 1 else 0
-    return pd.to_timedelta(horas, unit="h") + pd.to_timedelta(minutos, unit="m")
+    resultado = pd.to_timedelta(horas, unit="h") + pd.to_timedelta(minutos, unit="m")
+    resultado[vacio] = pd.NaT
+    return resultado
 
 
 def limpiar_datos(df_raw: pd.DataFrame):
@@ -100,9 +108,10 @@ def limpiar_datos(df_raw: pd.DataFrame):
     fecha = _parsear_fecha(df["Fecha"])
     hora = _parsear_hora(df["Hora"])
     df["FechaHora"] = fecha + hora
-    if df["FechaHora"].isna().any():
-        n = int(df["FechaHora"].isna().sum())
-        raise ValueError(f"{n} filas con Fecha/Hora no interpretable.")
+    # Filas sin Fecha u Hora (blancos en un archivo armado a mano, por
+    # ejemplo) no se pueden fichar: se descartan, igual que en pq/03_Limpieza.pq.
+    control["filas_sin_fecha_hora_descartadas"] = int(df["FechaHora"].isna().sum())
+    df = df.loc[df["FechaHora"].notna()].reset_index(drop=True)
 
     # --- Normalización de lector ---
     df["Lector"] = df["Reader Description"].map(cfg.normalizar_lector)
@@ -481,6 +490,7 @@ def calcular_control_calidad(control_limpieza: dict, control_estadias: dict,
         ("Archivos leídos", n_archivos),
         ("Filas totales (antes de deduplicar)", control_limpieza["filas_leidas"]),
         ("Duplicados eliminados", control_limpieza["duplicados_eliminados"]),
+        ("Filas sin Fecha/Hora descartadas", control_limpieza["filas_sin_fecha_hora_descartadas"]),
         ("Lectores sin clasificar", ", ".join(control_limpieza["lectores_sin_clasificar"]) or "(ninguno)"),
         ("Marcas sin IGG identificadas por credencial", control_limpieza["marcas_identificadas_por_credencial"]),
         ("Personas con más de una credencial", control_limpieza["personas_con_mas_de_una_credencial"]),

@@ -397,9 +397,15 @@ Private Function Codigo_03_Limpieza() As String
     s = s & "    }," & vbCrLf
     s = s & "    Origen = Table.Buffer(Table.Distinct(#""02_Origen"", ColumnasOriginales))," & vbCrLf
     s = s & "" & vbCrLf
+    s = s & "    // Filas sin Fecha o sin Hora no se pueden fichar (puede pasar en un" & vbCrLf
+    s = s & "    // archivo de prueba armado a mano, con alguna fila vacía o incompleta" & vbCrLf
+    s = s & "    // dentro del rango usado de la hoja). Se descartan acá, antes de" & vbCrLf
+    s = s & "    // intentar armar FechaHora, para no romper con ""cannot convert null""." & vbCrLf
+    s = s & "    SinFilasIncompletas = Table.SelectRows(Origen, each [Fecha] <> null and [Hora] <> null)," & vbCrLf
+    s = s & "" & vbCrLf
     s = s & "    // --- FechaHora: soporta Fecha/Hora como texto ""d/m/yyyy"" y ""HH:mm"", y" & vbCrLf
     s = s & "    // también como fecha/hora nativa si Excel ya las autodetectó así. ---" & vbCrLf
-    s = s & "    ConFechaHora = Table.AddColumn(Origen, ""FechaHora"", each" & vbCrLf
+    s = s & "    ConFechaHora = Table.AddColumn(SinFilasIncompletas, ""FechaHora"", each" & vbCrLf
     s = s & "        let" & vbCrLf
     s = s & "            valorFecha = [Fecha]," & vbCrLf
     s = s & "            fechaBase =" & vbCrLf
@@ -421,15 +427,18 @@ Private Function Codigo_03_Limpieza() As String
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    // --- Lector normalizado: Trim + colapsar espacios dobles a uno solo ---" & vbCrLf
+    s = s & "    // ""?? """""" antes de Text.Trim/Text.Split: esas funciones no toleran null" & vbCrLf
+    s = s & "    // (tiran ""cannot convert null to type Text""), y una fila con el lector" & vbCrLf
+    s = s & "    // en blanco no tiene por qué frenar toda la consulta." & vbCrLf
     s = s & "    ConLector = Table.AddColumn(ConFechaHora, ""Lector"", each" & vbCrLf
-    s = s & "        Text.Combine(List.Select(Text.Split(Text.Trim([#""Reader Description""]), "" ""), each _ <> """"), "" "")," & vbCrLf
+    s = s & "        Text.Combine(List.Select(Text.Split(Text.Trim([#""Reader Description""] ?? """"), "" ""), each _ <> """"), "" "")," & vbCrLf
     s = s & "        type text" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    // --- Clasificación de lector: join contra tLectores (Lector | Tipo) ---" & vbCrLf
     s = s & "    TablaLectores = Table.TransformColumns(" & vbCrLf
     s = s & "        Excel.CurrentWorkbook(){[Name=""tLectores""]}[Content]," & vbCrLf
-    s = s & "        {{""Lector"", each Text.Combine(List.Select(Text.Split(Text.Trim(_), "" ""), each _ <> """"), "" ""), type text}}" & vbCrLf
+    s = s & "        {{""Lector"", each Text.Combine(List.Select(Text.Split(Text.Trim(_ ?? """"), "" ""), each _ <> """"), "" ""), type text}}" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "    ConTipoLector = Table.NestedJoin(ConLector, {""Lector""}, TablaLectores, {""Lector""}, ""_lectorRef"", JoinKind.LeftOuter)," & vbCrLf
     s = s & "    ConTipoLector2 = Table.AddColumn(ConTipoLector, ""TipoLector"", each" & vbCrLf
@@ -449,7 +458,7 @@ Private Function Codigo_03_Limpieza() As String
     s = s & "    // --- IdPersona: IGG sin espacios, o ""CRED_"" & Credencial si no hay IGG ---" & vbCrLf
     s = s & "    ConIdPersona = Table.AddColumn(ConSegmento, ""IdPersona"", each" & vbCrLf
     s = s & "        let iggLimpio = if [IGG] = null then """" else Text.Trim([IGG])" & vbCrLf
-    s = s & "        in if iggLimpio = """" then ""CRED_"" & Text.Trim([Credencial]) else iggLimpio," & vbCrLf
+    s = s & "        in if iggLimpio = """" then ""CRED_"" & Text.Trim([Credencial] ?? """") else iggLimpio," & vbCrLf
     s = s & "        type text" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
@@ -1052,7 +1061,17 @@ Private Function Codigo_12_ControlCalidad() As String
     s = s & "" & vbCrLf
     s = s & "    ArchivosLeidos = List.Count(List.Distinct(Origen[ArchivoOrigen]))," & vbCrLf
     s = s & "    FilasTotales = Table.RowCount(Origen)," & vbCrLf
-    s = s & "    DuplicadosEliminados = FilasTotales - Table.RowCount(Limpio)," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "    // Recalcula el dedup por separado (mismas 10 columnas que 03_Limpieza)" & vbCrLf
+    s = s & "    // para no mezclar ""duplicados"" con ""filas sin Fecha/Hora"": 03_Limpieza" & vbCrLf
+    s = s & "    // saca ambas cosas, pero acá interesa reportarlas por separado." & vbCrLf
+    s = s & "    ColumnasOriginales = {" & vbCrLf
+    s = s & "        ""Fecha"", ""Hora"", ""IGG"", ""Apellido"", ""Nombre"", ""Credencial""," & vbCrLf
+    s = s & "        ""Evento"", ""SEGMENTO"", ""EMPRESA"", ""Reader Description""" & vbCrLf
+    s = s & "    }," & vbCrLf
+    s = s & "    Deduplicado = Table.Distinct(Origen, ColumnasOriginales)," & vbCrLf
+    s = s & "    DuplicadosEliminados = FilasTotales - Table.RowCount(Deduplicado)," & vbCrLf
+    s = s & "    FilasSinFechaHora = Table.RowCount(Table.SelectRows(Deduplicado, each [Fecha] = null or [Hora] = null))," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    LectoresUsados = List.Distinct(Limpio[Lector])," & vbCrLf
     s = s & "    LectoresConocidos = TablaLectores[Lector]," & vbCrLf
@@ -1082,6 +1101,7 @@ Private Function Codigo_12_ControlCalidad() As String
     s = s & "            {""Archivos leídos"", ArchivosLeidos}," & vbCrLf
     s = s & "            {""Filas totales (antes de deduplicar)"", FilasTotales}," & vbCrLf
     s = s & "            {""Duplicados eliminados"", DuplicadosEliminados}," & vbCrLf
+    s = s & "            {""Filas sin Fecha/Hora descartadas"", FilasSinFechaHora}," & vbCrLf
     s = s & "            {""Lectores sin clasificar"", TextoLectoresSinClasificar}," & vbCrLf
     s = s & "            {""Marcas sin IGG identificadas por credencial"", MarcasPorCredencial}," & vbCrLf
     s = s & "            {""Personas con más de una credencial"", PersonasMultiCredencial}," & vbCrLf
