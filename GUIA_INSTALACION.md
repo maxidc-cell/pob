@@ -47,31 +47,35 @@ Vas a necesitar estos dos datos para completar la hoja Config.
 2. Abrí el editor de VBA: `Alt+F11` (o `Desarrollador > Visual Basic`; si no
    ves la pestaña Desarrollador, activala en `Archivo > Opciones > Personalizar
    cinta de opciones` y tildá "Programador").
-3. Click derecho sobre el nombre del libro en el panel izquierdo →
-   `Insertar > Módulo`.
-4. Abrí `vba/Instalar_Reportes.bas` con el Bloc de notas, copiá todo el
-   contenido y pegalo en el módulo nuevo (o `Archivo > Importar archivo...`
-   dentro del editor de VBA y elegí el `.bas` directamente).
-5. Cerrá el editor de VBA, volvé a Excel.
-6. Con el libro activo, corré la macro: `Alt+F8`, elegí `Instalar_Reportes`,
+3. Click derecho sobre el nombre del libro (`VBAProject (Plantilla_Reportes_POB.xlsm)`)
+   en el panel izquierdo → **`Importar archivo...`** → elegí `vba/Instalar_Reportes.bas`.
+   **Importante: usá "Importar archivo", NO crees un módulo en blanco y
+   pegues el texto adentro.** El archivo empieza con una línea
+   (`Attribute VB_Name = "Instalar_Reportes"`) que VBA sólo interpreta bien
+   al importar el archivo; si la pegás como texto en un módulo ya creado,
+   tira "Error de compilación: Error de sintaxis" al querer ejecutar la
+   macro. Si ya te pasó eso: borrá ese módulo (click derecho → `Quitar
+   Módulo1` → "No" a exportar) y volvé a hacerlo con `Importar archivo...`.
+4. Cerrá el editor de VBA, volvé a Excel.
+5. Con el libro activo, corré la macro: `Alt+F8`, elegí `Instalar_Reportes`,
    `Ejecutar`.
-7. La primera vez que se conecte a OneDrive, Excel te va a pedir iniciar
+6. La primera vez que se conecte a OneDrive, Excel te va a pedir iniciar
    sesión: usá tu cuenta corporativa. Marcá "conectar siempre con esta
    cuenta" para no tener que repetirlo en cada refresco.
-8. La macro va a:
+7. La macro va a:
    - Crear las 12 consultas Power Query.
    - Cargar `POB_Diario`, `POB_Horario`, `POB_Franjas`, `Comedor` y
      `Control_Calidad` como tablas en sus hojas, y el detalle en la hoja
      oculta `Estadias`.
    - Armar un dashboard básico en la hoja `Dashboard` (tablas dinámicas,
      segmentaciones de Segmento y Empresa, y un gráfico por reporte).
-9. Al terminar te avisa con un mensaje. Si dice que el dashboard no se pudo
+8. Al terminar te avisa con un mensaje. Si dice que el dashboard no se pudo
    armar del todo, no pasa nada: las consultas y las tablas ya están
    cargadas igual (lo que suele fallar es sólo la parte visual, por
    diferencias entre versiones de Excel). Segui con la sección **3. Armar
    el dashboard a mano** más abajo para completar esa parte.
-10. Podés volver a correr la macro las veces que quieras (por ejemplo si
-    cambiaste algo en Config): reemplaza lo que ya existía, no duplica nada.
+9. Podés volver a correr la macro las veces que quieras (por ejemplo si
+   cambiaste algo en Config): reemplaza lo que ya existía, no duplica nada.
 
 ## Camino B — Manual (sin macro)
 
