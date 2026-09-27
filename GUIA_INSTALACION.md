@@ -40,7 +40,25 @@ Query, que ya viene incluido en Excel (pestaña **Datos**).
    coincidencia parcial) — por ejemplo `POB/TEST` — y pegalo en
    `Ruta_Carpeta`.
 
-Vas a necesitar estos dos datos para completar la hoja Config.
+5. **Paso obligatorio, una sola vez por libro**: desactivá el chequeo de
+   niveles de privacidad para este Excel. La consulta `02_Origen` usa un
+   valor que viene de otra consulta (`01_Parametros`, que lee la hoja
+   Config) para conectarse a SharePoint, y Power Query bloquea eso por
+   defecto con un error tipo *"Formula.Firewall: ... references other
+   queries or steps..."*. Para permitirlo:
+   - `Datos > Obtener datos > Opciones de consulta` (o `Archivo > Opciones
+     y configuración > Opciones`).
+   - En el panel izquierdo, bajo **"Libro actual"** (no "Global"), entrá a
+     **Privacidad**.
+   - Elegí **"Ignorar siempre los niveles de privacidad (esto podría
+     exponer datos confidenciales)"**.
+   - Esto es seguro acá: todo lo que se combina es interno de tu empresa
+     (la hoja Config del propio libro y tu sitio de SharePoint/OneDrive
+     corporativo), no hay ningún origen externo de por medio.
+
+Vas a necesitar estos dos datos (URL y Ruta de carpeta) para completar la
+hoja Config, y el ajuste de privacidad del punto 5 para que las consultas
+puedan refrescar sin errores.
 
 ## 1. Abrir la plantilla
 
@@ -222,3 +240,13 @@ Para que otra persona pueda abrir y actualizar este Excel:
 3. La primera vez que esa persona actualice, Excel le va a pedir loguearse
    con su cuenta corporativa para autorizar la conexión a OneDrive (igual
    que el paso 7 del Camino A).
+
+## 5. Solución de problemas frecuentes
+
+| Error | Causa | Solución |
+|---|---|---|
+| `Error de compilación: Error de sintaxis` al ejecutar la macro (VBA) | Pegaste el código del `.bas` como texto en un módulo en blanco en vez de importarlo. La línea `Attribute VB_Name = ...` sólo es válida al importar. | Borrá el módulo, usá `Importar archivo...` (ver Camino A, paso 3). |
+| `DataFormat.Error: The input URL is invalid. Please provide a URL to the root of a SharePoint site...` | `URL_Sitio_OneDrive` tiene la URL completa de la vista de la carpeta (con `?FolderCTID=...&id=...`), no la raíz del sitio. | Cortá la URL como se explica en la sección 0, puntos 3 y 4. |
+| `Formula.Firewall: ... references other queries or steps, so it may not directly access a data source` | Power Query bloquea por defecto que una consulta use un valor de otra consulta (acá, `01_Parametros`) para conectarse a un origen de datos. | Sección 0, punto 5: ignorar los niveles de privacidad para este libro. |
+| Un lector nuevo no se clasifica como esperás | Todavía no está en `tLectores`, o el nombre no coincide exactamente (revisá espacios dobles). | Sección 3 de esta guía. |
+| Las cifras no coinciden con `validacion/resultados_esperados.xlsx` | Puede ser una diferencia de criterio ya documentada, o un problema de carga. | `validacion/COMO_VALIDAR.md`, sección 4. |
