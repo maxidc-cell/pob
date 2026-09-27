@@ -19,13 +19,17 @@ let
     Hoja = Parametros[Hoja_Origen],
 
     // SharePoint.Files devuelve TODOS los archivos del sitio (recursivo);
-    // filtramos por carpeta, prefijo de nombre y extensión.
+    // filtramos por carpeta, prefijo de nombre y extensión. La comparación
+    // ignora mayúsculas/minúsculas (Ruta_Carpeta no necesita coincidir
+    // exactamente con cómo SharePoint guarda el path). Si Ruta_Carpeta
+    // queda vacía, no filtra por carpeta (sirve para ver todos los
+    // archivos del sitio y confirmar el [Folder Path] real la primera vez).
     Origen = SharePoint.Files(UrlSitio, [ApiVersion = 15]),
     FiltradoCarpeta = Table.SelectRows(
         Origen,
-        each Text.Contains([Folder Path], RutaCarpeta)
-            and Text.StartsWith([Name], Prefijo)
-            and Text.EndsWith([Name], ".xlsx")
+        each Text.Contains([Folder Path], RutaCarpeta, Comparer.OrdinalIgnoreCase)
+            and Text.StartsWith([Name], Prefijo, Comparer.OrdinalIgnoreCase)
+            and Text.EndsWith([Name], ".xlsx", Comparer.OrdinalIgnoreCase)
     ),
 
     // Por cada archivo, abrimos el workbook y extraemos la hoja de fichadas.

@@ -4,20 +4,41 @@ Esta guía asume Excel para Microsoft 365 de 64 bits en una PC donde no podés
 instalar software. No hace falta instalar nada: todo se hace con Power
 Query, que ya viene incluido en Excel (pestaña **Datos**).
 
-## 0. Antes de empezar: subir los archivos de origen a OneDrive
+## 0. Antes de empezar: subir los archivos de origen a OneDrive/SharePoint
 
-1. En tu OneDrive for Business corporativo, creá una carpeta para los
-   archivos de fichadas (por ejemplo `Documents/POB/`).
+1. En tu OneDrive for Business (o un sitio de SharePoint, es el mismo
+   conector) corporativo, creá una carpeta para los archivos de fichadas
+   (por ejemplo `Documents/POB/`).
 2. Subí ahí los archivos `POB*.xlsx` (todos los que tengas acumulados). El
    nombre tiene que empezar con `POB` y terminar en `.xlsx`.
-3. Anotá la **URL de tu sitio de OneDrive**. Se obtiene así:
-   - Abrí OneDrive en el navegador (onedrive.com, con tu cuenta corporativa).
-   - Andá a la carpeta donde subiste los archivos.
-   - Copiá la URL del navegador hasta la parte `.../personal/tuusuario/` (sin
-     lo que sigue después). Por ejemplo:
-     `https://tuempresa-my.sharepoint.com/personal/jperez_tuempresa_com/`
-   - La parte que sigue (por ejemplo `/Documents/POB/`) es la **Ruta de
-     carpeta**.
+3. Anotá la **URL raíz del sitio** (`URL_Sitio_OneDrive`) y la **Ruta de
+   carpeta** (`Ruta_Carpeta`). **Ojo:** no es simplemente "copiar la URL de
+   la barra del navegador cuando estás mirando la carpeta" — esa URL trae de
+   más (la vista de la carpeta, parámetros como `?FolderCTID=...&id=...`) y
+   la consulta la va a rechazar con un error como
+   *"The input URL is invalid. Please provide a URL to the root of a
+   SharePoint site..."*. Hacelo así:
+
+   - **Si es tu OneDrive personal** (`.../personal/tuusuario/...`): la URL
+     raíz termina justo después de `/personal/tuusuario/`, por ejemplo
+     `https://tuempresa-my.sharepoint.com/personal/jperez_tuempresa_com/`.
+     Todo lo que sigue (`/Documents/POB/`) es la Ruta de carpeta.
+   - **Si es un sitio de SharePoint** (`.../sites/NombreDelSitio/...`, como
+     una biblioteca de equipo): la URL raíz termina justo después de
+     `/sites/NombreDelSitio/`, por ejemplo
+     `https://tuempresa.sharepoint.com/sites/BASEDEDATOS-CONTROL/`. Todo lo
+     que sigue es la Ruta de carpeta — pero **no** copies el `id=...` de la
+     URL (viene codificado con `%2F` en vez de `/`); mejor seguí el paso 4.
+4. Si no estás seguro de qué poner en `Ruta_Carpeta`, dejala vacía primero,
+   completá sólo `URL_Sitio_OneDrive` (la raíz) y refrescá la consulta
+   `02_Origen` en el Editor de Poder Query: te va a listar TODOS los
+   archivos del sitio, con una columna `Folder Path` que muestra el path
+   real y sin codificar de cada carpeta (por ejemplo
+   `/sites/BASEDEDATOS-CONTROL/Documents partages/CONTROL DE CATERING/POB/TEST`).
+   Copiá de ahí un fragmento que identifique sólo tu carpeta (no hace falta
+   el path completo ni las mayúsculas exactas, la consulta busca por
+   coincidencia parcial) — por ejemplo `POB/TEST` — y pegalo en
+   `Ruta_Carpeta`.
 
 Vas a necesitar estos dos datos para completar la hoja Config.
 

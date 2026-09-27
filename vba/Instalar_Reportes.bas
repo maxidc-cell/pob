@@ -320,13 +320,17 @@ Private Function Codigo_02_Origen() As String
     s = s & "    Hoja = Parametros[Hoja_Origen]," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    // SharePoint.Files devuelve TODOS los archivos del sitio (recursivo);" & vbCrLf
-    s = s & "    // filtramos por carpeta, prefijo de nombre y extensión." & vbCrLf
+    s = s & "    // filtramos por carpeta, prefijo de nombre y extensión. La comparación" & vbCrLf
+    s = s & "    // ignora mayúsculas/minúsculas (Ruta_Carpeta no necesita coincidir" & vbCrLf
+    s = s & "    // exactamente con cómo SharePoint guarda el path). Si Ruta_Carpeta" & vbCrLf
+    s = s & "    // queda vacía, no filtra por carpeta (sirve para ver todos los" & vbCrLf
+    s = s & "    // archivos del sitio y confirmar el [Folder Path] real la primera vez)." & vbCrLf
     s = s & "    Origen = SharePoint.Files(UrlSitio, [ApiVersion = 15])," & vbCrLf
     s = s & "    FiltradoCarpeta = Table.SelectRows(" & vbCrLf
     s = s & "        Origen," & vbCrLf
-    s = s & "        each Text.Contains([Folder Path], RutaCarpeta)" & vbCrLf
-    s = s & "            and Text.StartsWith([Name], Prefijo)" & vbCrLf
-    s = s & "            and Text.EndsWith([Name], "".xlsx"")" & vbCrLf
+    s = s & "        each Text.Contains([Folder Path], RutaCarpeta, Comparer.OrdinalIgnoreCase)" & vbCrLf
+    s = s & "            and Text.StartsWith([Name], Prefijo, Comparer.OrdinalIgnoreCase)" & vbCrLf
+    s = s & "            and Text.EndsWith([Name], "".xlsx"", Comparer.OrdinalIgnoreCase)" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    // Por cada archivo, abrimos el workbook y extraemos la hoja de fichadas." & vbCrLf
