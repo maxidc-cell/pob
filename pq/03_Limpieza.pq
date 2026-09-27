@@ -50,11 +50,23 @@ let
         type datetime
     ),
 
+    // Filas con un año disparatado (un typo en la fecha, por ejemplo
+    // "1/9/1026" en vez de "1/9/2026", o un Excel serial mal interpretado)
+    // se descartan acá. Sin este control, una sola fila así puede hacer que
+    // 06_Estadias intente generar miles de controles de fin de mes (uno por
+    // cada mes entre esa fecha rota y hoy) y la consulta se cuelgue durante
+    // horas sin avisar con un error.
+    AnioActual = Date.Year(DateTime.Date(DateTime.LocalNow())),
+    SinFechasDisparatadas = Table.SelectRows(ConFechaHora, each
+        let anio = Date.Year(DateTime.Date([FechaHora]))
+        in anio >= 2015 and anio <= AnioActual + 1
+    ),
+
     // --- Lector normalizado: Trim + colapsar espacios dobles a uno solo ---
     // "?? """ antes de Text.Trim/Text.Split: esas funciones no toleran null
     // (tiran "cannot convert null to type Text"), y una fila con el lector
     // en blanco no tiene por qué frenar toda la consulta.
-    ConLector = Table.AddColumn(ConFechaHora, "Lector", each
+    ConLector = Table.AddColumn(SinFechasDisparatadas, "Lector", each
         Text.Combine(List.Select(Text.Split(Text.Trim([#"Reader Description"] ?? ""), " "), each _ <> ""), " "),
         type text
     ),

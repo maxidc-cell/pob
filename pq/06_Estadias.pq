@@ -38,10 +38,20 @@ let
             FechaMin = List.Min(EventosValidos[FechaHora]),
     Ahora = DateTime.LocalNow(),
     PrimerCandidato = Date.AddMonths(Date.StartOfMonth(DateTime.Date(FechaMin)), 1),
-    Boundaries = List.Generate(
-        () => PrimerCandidato,
-        each DateTime.From(_) <= Ahora,
-        each Date.AddMonths(_, 1)
+    // Tope de seguridad: en uso normal (archivos cargados mes a mes) esto
+    // nunca genera más que un puñado de controles. Si por algún dato
+    // corrupto FechaMin quedara mal (un typo de año, por ejemplo), este
+    // límite evita que la consulta intente generar miles de controles y se
+    // cuelgue; 03_Limpieza además descarta fechas con un año disparatado
+    // antes de que lleguen hasta acá.
+    MaximoControlesFinDeMes = 240, // 20 años
+    Boundaries = List.FirstN(
+        List.Generate(
+            () => PrimerCandidato,
+            each DateTime.From(_) <= Ahora,
+            each Date.AddMonths(_, 1)
+        ),
+        MaximoControlesFinDeMes
     ),
     BoundariesDT = List.Transform(Boundaries, each DateTime.From(_)),
 

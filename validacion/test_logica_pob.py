@@ -230,6 +230,28 @@ def test_lector_con_doble_espacio_matchea_la_tabla_normalizada():
 # IdPersona e IGG vacío
 # ===========================================================================
 
+def test_fila_con_anio_disparatado_se_descarta():
+    """Un typo de fecha (año mal escrito) no debe colar una estadía absurda
+    ni disparar de más controles de fin de mes: se descarta en la limpieza."""
+    filas = [
+        {
+            "Fecha": "1/9/2026", "Hora": "08:00", "IGG": "D1", "Apellido": "PEREZ",
+            "Nombre": "JUAN", "Credencial": 111, "Evento": "Access Granted",
+            "SEGMENTO": "AGUADA PICHANA", "EMPRESA": "ACME", "Reader Description": "AP - PortExter ENT 01-1-01",
+        },
+        {
+            "Fecha": "1/9/1026", "Hora": "09:00", "IGG": "D2", "Apellido": "GOMEZ",  # typo: 1026 en vez de 2026
+            "Nombre": "ANA", "Credencial": 222, "Evento": "Access Granted",
+            "SEGMENTO": "AGUADA PICHANA", "EMPRESA": "ACME", "Reader Description": "AP - PortExter ENT 01-1-01",
+        },
+    ]
+    df_raw = pd.DataFrame(filas)
+    df_todo, control = lp.limpiar_datos(df_raw)
+    assert control["filas_fecha_fuera_de_rango_descartadas"] == 1
+    assert len(df_todo) == 1
+    assert df_todo.iloc[0]["IdPersona"] == "D1"
+
+
 def test_filas_sin_fecha_o_sin_hora_se_descartan_sin_romper():
     filas = [
         {

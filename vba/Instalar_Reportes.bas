@@ -426,11 +426,23 @@ Private Function Codigo_03_Limpieza() As String
     s = s & "        type datetime" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
+    s = s & "    // Filas con un año disparatado (un typo en la fecha, por ejemplo" & vbCrLf
+    s = s & "    // ""1/9/1026"" en vez de ""1/9/2026"", o un Excel serial mal interpretado)" & vbCrLf
+    s = s & "    // se descartan acá. Sin este control, una sola fila así puede hacer que" & vbCrLf
+    s = s & "    // 06_Estadias intente generar miles de controles de fin de mes (uno por" & vbCrLf
+    s = s & "    // cada mes entre esa fecha rota y hoy) y la consulta se cuelgue durante" & vbCrLf
+    s = s & "    // horas sin avisar con un error." & vbCrLf
+    s = s & "    AnioActual = Date.Year(DateTime.Date(DateTime.LocalNow()))," & vbCrLf
+    s = s & "    SinFechasDisparatadas = Table.SelectRows(ConFechaHora, each" & vbCrLf
+    s = s & "        let anio = Date.Year(DateTime.Date([FechaHora]))" & vbCrLf
+    s = s & "        in anio >= 2015 and anio <= AnioActual + 1" & vbCrLf
+    s = s & "    )," & vbCrLf
+    s = s & "" & vbCrLf
     s = s & "    // --- Lector normalizado: Trim + colapsar espacios dobles a uno solo ---" & vbCrLf
     s = s & "    // ""?? """""" antes de Text.Trim/Text.Split: esas funciones no toleran null" & vbCrLf
     s = s & "    // (tiran ""cannot convert null to type Text""), y una fila con el lector" & vbCrLf
     s = s & "    // en blanco no tiene por qué frenar toda la consulta." & vbCrLf
-    s = s & "    ConLector = Table.AddColumn(ConFechaHora, ""Lector"", each" & vbCrLf
+    s = s & "    ConLector = Table.AddColumn(SinFechasDisparatadas, ""Lector"", each" & vbCrLf
     s = s & "        Text.Combine(List.Select(Text.Split(Text.Trim([#""Reader Description""] ?? """"), "" ""), each _ <> """"), "" "")," & vbCrLf
     s = s & "        type text" & vbCrLf
     s = s & "    )," & vbCrLf
@@ -567,10 +579,20 @@ Private Function Codigo_06_Estadias() As String
     s = s & "            FechaMin = List.Min(EventosValidos[FechaHora])," & vbCrLf
     s = s & "    Ahora = DateTime.LocalNow()," & vbCrLf
     s = s & "    PrimerCandidato = Date.AddMonths(Date.StartOfMonth(DateTime.Date(FechaMin)), 1)," & vbCrLf
-    s = s & "    Boundaries = List.Generate(" & vbCrLf
-    s = s & "        () => PrimerCandidato," & vbCrLf
-    s = s & "        each DateTime.From(_) <= Ahora," & vbCrLf
-    s = s & "        each Date.AddMonths(_, 1)" & vbCrLf
+    s = s & "    // Tope de seguridad: en uso normal (archivos cargados mes a mes) esto" & vbCrLf
+    s = s & "    // nunca genera más que un puñado de controles. Si por algún dato" & vbCrLf
+    s = s & "    // corrupto FechaMin quedara mal (un typo de año, por ejemplo), este" & vbCrLf
+    s = s & "    // límite evita que la consulta intente generar miles de controles y se" & vbCrLf
+    s = s & "    // cuelgue; 03_Limpieza además descarta fechas con un año disparatado" & vbCrLf
+    s = s & "    // antes de que lleguen hasta acá." & vbCrLf
+    s = s & "    MaximoControlesFinDeMes = 240, // 20 años" & vbCrLf
+    s = s & "    Boundaries = List.FirstN(" & vbCrLf
+    s = s & "        List.Generate(" & vbCrLf
+    s = s & "            () => PrimerCandidato," & vbCrLf
+    s = s & "            each DateTime.From(_) <= Ahora," & vbCrLf
+    s = s & "            each Date.AddMonths(_, 1)" & vbCrLf
+    s = s & "        )," & vbCrLf
+    s = s & "        MaximoControlesFinDeMes" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "    BoundariesDT = List.Transform(Boundaries, each DateTime.From(_))," & vbCrLf
     s = s & "" & vbCrLf
@@ -1084,6 +1106,12 @@ Private Function Codigo_12_ControlCalidad() As String
     s = s & "    Deduplicado = Table.Distinct(Origen, ColumnasOriginales)," & vbCrLf
     s = s & "    DuplicadosEliminados = FilasTotales - Table.RowCount(Deduplicado)," & vbCrLf
     s = s & "    FilasSinFechaHora = Table.RowCount(Table.SelectRows(Deduplicado, each [Fecha] = null or [Hora] = null))," & vbCrLf
+    s = s & "    // 03_Limpieza (Limpio) descarta, además de las filas sin Fecha/Hora, las" & vbCrLf
+    s = s & "    // que tienen un año disparatado (ver esa consulta). La diferencia entre" & vbCrLf
+    s = s & "    // lo deduplicado y lo que finalmente deja pasar Limpio, menos las que ya" & vbCrLf
+    s = s & "    // contamos como ""sin Fecha/Hora"", da las descartadas por año fuera de" & vbCrLf
+    s = s & "    // rango (evita repetir acá todo el parseo de fecha)." & vbCrLf
+    s = s & "    FilasFueraDeRango = (Table.RowCount(Deduplicado) - Table.RowCount(Limpio)) - FilasSinFechaHora," & vbCrLf
     s = s & "" & vbCrLf
     s = s & "    LectoresUsados = List.Distinct(Limpio[Lector])," & vbCrLf
     s = s & "    LectoresConocidos = TablaLectores[Lector]," & vbCrLf
@@ -1114,6 +1142,7 @@ Private Function Codigo_12_ControlCalidad() As String
     s = s & "            {""Filas totales (antes de deduplicar)"", FilasTotales}," & vbCrLf
     s = s & "            {""Duplicados eliminados"", DuplicadosEliminados}," & vbCrLf
     s = s & "            {""Filas sin Fecha/Hora descartadas"", FilasSinFechaHora}," & vbCrLf
+    s = s & "            {""Filas con Fecha fuera de rango descartadas"", FilasFueraDeRango}," & vbCrLf
     s = s & "            {""Lectores sin clasificar"", TextoLectoresSinClasificar}," & vbCrLf
     s = s & "            {""Marcas sin IGG identificadas por credencial"", MarcasPorCredencial}," & vbCrLf
     s = s & "            {""Personas con más de una credencial"", PersonasMultiCredencial}," & vbCrLf

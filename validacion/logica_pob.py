@@ -113,6 +113,17 @@ def limpiar_datos(df_raw: pd.DataFrame):
     control["filas_sin_fecha_hora_descartadas"] = int(df["FechaHora"].isna().sum())
     df = df.loc[df["FechaHora"].notna()].reset_index(drop=True)
 
+    # Filas con un año disparatado (typo de fecha, o un serial de Excel mal
+    # interpretado) también se descartan: además de ser un dato basura, si
+    # llegaran a construir_estadias() podrían disparar miles de checkpoints
+    # de fin de mes entre esa fecha rota y hoy (ver misma protección en
+    # pq/03_Limpieza.pq y el límite de MaximoControlesFinDeMes en
+    # pq/06_Estadias.pq / _primeros_dias_de_mes más abajo).
+    anio_actual = pd.Timestamp.now().year
+    fuera_de_rango = ~df["FechaHora"].dt.year.between(2015, anio_actual + 1)
+    control["filas_fecha_fuera_de_rango_descartadas"] = int(fuera_de_rango.sum())
+    df = df.loc[~fuera_de_rango].reset_index(drop=True)
+
     # --- Normalización de lector ---
     df["Lector"] = df["Reader Description"].map(cfg.normalizar_lector)
 
@@ -192,7 +203,8 @@ def _primeros_dias_de_mes(fecha_min: pd.Timestamp, ahora: pd.Timestamp) -> list[
             cursor = pd.Timestamp(cursor.year + 1, 1, 1)
         else:
             cursor = pd.Timestamp(cursor.year, cursor.month + 1, 1)
-    while cursor <= ahora:
+    MAXIMO_CONTROLES_FIN_DE_MES = 240  # 20 años; ver misma protección en pq/06_Estadias.pq
+    while cursor <= ahora and len(boundaries) < MAXIMO_CONTROLES_FIN_DE_MES:
         boundaries.append(cursor)
         if cursor.month == 12:
             cursor = pd.Timestamp(cursor.year + 1, 1, 1)
@@ -491,6 +503,7 @@ def calcular_control_calidad(control_limpieza: dict, control_estadias: dict,
         ("Filas totales (antes de deduplicar)", control_limpieza["filas_leidas"]),
         ("Duplicados eliminados", control_limpieza["duplicados_eliminados"]),
         ("Filas sin Fecha/Hora descartadas", control_limpieza["filas_sin_fecha_hora_descartadas"]),
+        ("Filas con Fecha fuera de rango descartadas", control_limpieza["filas_fecha_fuera_de_rango_descartadas"]),
         ("Lectores sin clasificar", ", ".join(control_limpieza["lectores_sin_clasificar"]) or "(ninguno)"),
         ("Marcas sin IGG identificadas por credencial", control_limpieza["marcas_identificadas_por_credencial"]),
         ("Personas con más de una credencial", control_limpieza["personas_con_mas_de_una_credencial"]),
