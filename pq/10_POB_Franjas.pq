@@ -12,33 +12,44 @@ let
         {{"Franja", Text.Trim, type text}, {"HoraInicio", Text.Trim, type text}, {"HoraCierre", Text.Trim, type text}}
     ),
 
-    FechaMinDatos = List.Min(Estadias[Inicio]),
-    FinesNoNulos = List.RemoveNulls(Estadias[Fin]),
-    TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos),
-    FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin}),
-    DiaInicio = DateTime.Date(FechaMinDatos),
-    DiaFin = DateTime.Date(FechaMaxDatos),
-    CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1,
-    Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _)),
+    ColumnasSalida = type table [Fecha = date, Franja = text, Segmento = text, Empresa = text, POB = Int64.Type],
 
-    TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
-    ConFranjas = Table.AddColumn(TablaDias, "F", each Franjas),
-    Grilla = Table.ExpandTableColumn(ConFranjas, "F", {"Franja", "HoraCierre"}),
-    ConInstante = Table.AddColumn(Grilla, "Instante", (fila) =>
+    Salida =
+        // Sin estadías todavía (mes sin datos, o ninguna marca válida): no
+        // hay rango de fechas que armar, se devuelve la tabla vacía.
+        if Table.IsEmpty(Estadias) then
+            #table(ColumnasSalida, {})
+        else
         let
-            partes = Text.Split(fila[HoraCierre], ":"),
-            h = Number.FromText(partes{0}),
-            m = Number.FromText(partes{1})
+            FechaMinDatos = List.Min(Estadias[Inicio]),
+            FinesNoNulos = List.RemoveNulls(Estadias[Fin]),
+            TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos),
+            FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin}),
+            DiaInicio = DateTime.Date(FechaMinDatos),
+            DiaFin = DateTime.Date(FechaMaxDatos),
+            CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1,
+            Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _)),
+
+            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
+            ConFranjas = Table.AddColumn(TablaDias, "F", each Franjas),
+            Grilla = Table.ExpandTableColumn(ConFranjas, "F", {"Franja", "HoraCierre"}),
+            ConInstante = Table.AddColumn(Grilla, "Instante", (fila) =>
+                let
+                    partes = Text.Split(fila[HoraCierre], ":"),
+                    h = Number.FromText(partes{0}),
+                    m = Number.FromText(partes{1})
+                in
+                    fila[Fecha] & #time(h, m, 0)
+            ),
+
+            ConPresentes = Table.AddColumn(ConInstante, "Presentes", (fila) =>
+                Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))
+            ),
+            Expandido = Table.ExpandTableColumn(ConPresentes, "Presentes", {"IdPersona", "Segmento", "Empresa"}),
+            Presencia = Table.SelectColumns(Expandido, {"Fecha", "Franja", "IdPersona", "Segmento", "Empresa"}),
+
+            Resultado = #"07_fnExpandirGrupos"(Presencia, {"Fecha", "Franja"}, "POB")
         in
-            fila[Fecha] & #time(h, m, 0)
-    ),
-
-    ConPresentes = Table.AddColumn(ConInstante, "Presentes", (fila) =>
-        Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))
-    ),
-    Expandido = Table.ExpandTableColumn(ConPresentes, "Presentes", {"IdPersona", "Segmento", "Empresa"}),
-    Presencia = Table.SelectColumns(Expandido, {"Fecha", "Franja", "IdPersona", "Segmento", "Empresa"}),
-
-    Resultado = #"07_fnExpandirGrupos"(Presencia, {"Fecha", "Franja"}, "POB")
+            Resultado
 in
-    Resultado
+    Salida

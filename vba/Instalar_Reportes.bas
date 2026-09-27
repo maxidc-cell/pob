@@ -540,8 +540,22 @@ Private Function Codigo_06_Estadias() As String
     s = s & "let" & vbCrLf
     s = s & "    EventosValidos = #""05_Validos""," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    // --- 1) Checkpoints de fin de mes (""en vivo"": hasta el momento del refresco) ---" & vbCrLf
-    s = s & "    FechaMin = List.Min(EventosValidos[FechaHora])," & vbCrLf
+    s = s & "    ColumnasSalida = type table [" & vbCrLf
+    s = s & "        IdPersona = text, Segmento = text, Inicio = datetime, Fin = nullable datetime," & vbCrLf
+    s = s & "        Motivo = text, Empresa = text" & vbCrLf
+    s = s & "    ]," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "    Salida =" & vbCrLf
+    s = s & "        // Sin ninguna fichada válida (archivo de prueba vacío, o ningún" & vbCrLf
+    s = s & "        // evento de tEventosValidos todavía) no hay nada que procesar: se" & vbCrLf
+    s = s & "        // devuelve la tabla vacía en vez de calcular sobre listas vacías" & vbCrLf
+    s = s & "        // (List.Min de una lista vacía da null y rompe todo lo que sigue)." & vbCrLf
+    s = s & "        if Table.IsEmpty(EventosValidos) then" & vbCrLf
+    s = s & "            #table(ColumnasSalida, {})" & vbCrLf
+    s = s & "        else" & vbCrLf
+    s = s & "        let" & vbCrLf
+    s = s & "            // --- 1) Checkpoints de fin de mes (""en vivo"": hasta el momento del refresco) ---" & vbCrLf
+    s = s & "            FechaMin = List.Min(EventosValidos[FechaHora])," & vbCrLf
     s = s & "    Ahora = DateTime.LocalNow()," & vbCrLf
     s = s & "    PrimerCandidato = Date.AddMonths(Date.StartOfMonth(DateTime.Date(FechaMin)), 1)," & vbCrLf
     s = s & "    Boundaries = List.Generate(" & vbCrLf
@@ -660,8 +674,10 @@ Private Function Codigo_06_Estadias() As String
     s = s & "        type text" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "    Final = Table.Buffer(Table.RemoveColumns(ConEmpresa, {""_emp""}))" & vbCrLf
+    s = s & "        in" & vbCrLf
+    s = s & "            Final" & vbCrLf
     s = s & "in" & vbCrLf
-    s = s & "    Final" & vbCrLf
+    s = s & "    Salida" & vbCrLf
     Codigo_06_Estadias = s
 End Function
 
@@ -766,59 +782,74 @@ Private Function Codigo_08_POB_Diario() As String
     s = s & "        in" & vbCrLf
     s = s & "            [Maximo = resultado[Maximo], HoraMaximo = resultado[HoraMaximo]]," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    Segmentos = List.Distinct(List.RemoveNulls(Estadias[Segmento]))," & vbCrLf
-    s = s & "    Empresas = List.Distinct(Estadias[Empresa])," & vbCrLf
+    s = s & "    ColumnasSalida = type table [" & vbCrLf
+    s = s & "        Fecha = date, Segmento = text, Empresa = text," & vbCrLf
+    s = s & "        Presentes_en_el_dia = Int64.Type, Maximo_simultaneo = Int64.Type, Hora_del_maximo = nullable datetime" & vbCrLf
+    s = s & "    ]," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
-    s = s & "    FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
-    s = s & "    TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
-    s = s & "    FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
-    s = s & "    DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
-    s = s & "    DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
-    s = s & "    CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
-    s = s & "    Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    // Combos de Segmento: cada valor real + TOTAL (todos juntos)." & vbCrLf
-    s = s & "    CombosSegmento = List.Combine({" & vbCrLf
-    s = s & "        List.Transform(Segmentos, (s) => [Etiqueta = s, Valores = {s}])," & vbCrLf
-    s = s & "        {[Etiqueta = ""TOTAL"", Valores = Segmentos]}" & vbCrLf
-    s = s & "    })," & vbCrLf
-    s = s & "    // Combos de Empresa: cada valor real + TODAS (todas juntas)." & vbCrLf
-    s = s & "    CombosEmpresa = List.Combine({" & vbCrLf
-    s = s & "        List.Transform(Empresas, (e) => [Etiqueta = e, Valores = {e}])," & vbCrLf
-    s = s & "        {[Etiqueta = ""TODAS"", Valores = Empresas]}" & vbCrLf
-    s = s & "    })," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
-    s = s & "    TablaSeg = Table.FromRecords(CombosSegmento)," & vbCrLf
-    s = s & "    TablaEmp = Table.FromRecords(CombosEmpresa)," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    ConSeg = Table.AddColumn(TablaDias, ""Seg"", each TablaSeg)," & vbCrLf
-    s = s & "    ExpSeg = Table.ExpandTableColumn(ConSeg, ""Seg"", {""Etiqueta"", ""Valores""}, {""SegmentoLabel"", ""SegmentoValores""})," & vbCrLf
-    s = s & "    ConEmp = Table.AddColumn(ExpSeg, ""Emp"", each TablaEmp)," & vbCrLf
-    s = s & "    ExpEmp = Table.ExpandTableColumn(ConEmp, ""Emp"", {""Etiqueta"", ""Valores""}, {""EmpresaLabel"", ""EmpresaValores""})," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    ConResultado = Table.AddColumn(ExpEmp, ""Resultado"", (filaActual) =>" & vbCrLf
+    s = s & "    Resultado =" & vbCrLf
+    s = s & "        // Sin estadías (mes sin datos todavía, o ninguna marca válida) no hay" & vbCrLf
+    s = s & "        // rango de fechas que armar: se devuelve la tabla vacía directamente," & vbCrLf
+    s = s & "        // en vez de romper en el List.Min/Max sobre una lista vacía." & vbCrLf
+    s = s & "        if Table.IsEmpty(Estadias) then" & vbCrLf
+    s = s & "            #table(ColumnasSalida, {})" & vbCrLf
+    s = s & "        else" & vbCrLf
     s = s & "        let" & vbCrLf
-    s = s & "            dayStart = DateTime.From(filaActual[Fecha])," & vbCrLf
-    s = s & "            dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1))," & vbCrLf
-    s = s & "            solapan = Table.SelectRows(Estadias, (fe) =>" & vbCrLf
-    s = s & "                List.Contains(filaActual[SegmentoValores], fe[Segmento])" & vbCrLf
-    s = s & "                and List.Contains(filaActual[EmpresaValores], fe[Empresa])" & vbCrLf
-    s = s & "                and fe[Inicio] < dayEnd" & vbCrLf
-    s = s & "                and (fe[Fin] = null or fe[Fin] > dayStart)" & vbCrLf
-    s = s & "            )," & vbCrLf
-    s = s & "            presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {""IdPersona""})))," & vbCrLf
-    s = s & "            maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)" & vbCrLf
-    s = s & "        in" & vbCrLf
-    s = s & "            [Presentes = presentes, Maximo = maxSim[Maximo], HoraMaximo = maxSim[HoraMaximo]]" & vbCrLf
-    s = s & "    )," & vbCrLf
+    s = s & "            Segmentos = List.Distinct(List.RemoveNulls(Estadias[Segmento]))," & vbCrLf
+    s = s & "            Empresas = List.Distinct(Estadias[Empresa])," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    Expandido = Table.ExpandRecordColumn(ConResultado, ""Resultado"", {""Presentes"", ""Maximo"", ""HoraMaximo""}, {""Presentes_en_el_dia"", ""Maximo_simultaneo"", ""Hora_del_maximo""})," & vbCrLf
-    s = s & "    Renombrado = Table.RenameColumns(Expandido, {{""SegmentoLabel"", ""Segmento""}, {""EmpresaLabel"", ""Empresa""}})," & vbCrLf
-    s = s & "    Final = Table.SelectColumns(Renombrado, {""Fecha"", ""Segmento"", ""Empresa"", ""Presentes_en_el_dia"", ""Maximo_simultaneo"", ""Hora_del_maximo""})" & vbCrLf
+    s = s & "            FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
+    s = s & "            FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
+    s = s & "            TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
+    s = s & "            FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
+    s = s & "            DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
+    s = s & "            DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
+    s = s & "            CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
+    s = s & "            Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            // Combos de Segmento: cada valor real + TOTAL (todos juntos)." & vbCrLf
+    s = s & "            CombosSegmento = List.Combine({" & vbCrLf
+    s = s & "                List.Transform(Segmentos, (s) => [Etiqueta = s, Valores = {s}])," & vbCrLf
+    s = s & "                {[Etiqueta = ""TOTAL"", Valores = Segmentos]}" & vbCrLf
+    s = s & "            })," & vbCrLf
+    s = s & "            // Combos de Empresa: cada valor real + TODAS (todas juntas)." & vbCrLf
+    s = s & "            CombosEmpresa = List.Combine({" & vbCrLf
+    s = s & "                List.Transform(Empresas, (e) => [Etiqueta = e, Valores = {e}])," & vbCrLf
+    s = s & "                {[Etiqueta = ""TODAS"", Valores = Empresas]}" & vbCrLf
+    s = s & "            })," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
+    s = s & "            TablaSeg = Table.FromRecords(CombosSegmento)," & vbCrLf
+    s = s & "            TablaEmp = Table.FromRecords(CombosEmpresa)," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            ConSeg = Table.AddColumn(TablaDias, ""Seg"", each TablaSeg)," & vbCrLf
+    s = s & "            ExpSeg = Table.ExpandTableColumn(ConSeg, ""Seg"", {""Etiqueta"", ""Valores""}, {""SegmentoLabel"", ""SegmentoValores""})," & vbCrLf
+    s = s & "            ConEmp = Table.AddColumn(ExpSeg, ""Emp"", each TablaEmp)," & vbCrLf
+    s = s & "            ExpEmp = Table.ExpandTableColumn(ConEmp, ""Emp"", {""Etiqueta"", ""Valores""}, {""EmpresaLabel"", ""EmpresaValores""})," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            ConResultado = Table.AddColumn(ExpEmp, ""Resultado"", (filaActual) =>" & vbCrLf
+    s = s & "                let" & vbCrLf
+    s = s & "                    dayStart = DateTime.From(filaActual[Fecha])," & vbCrLf
+    s = s & "                    dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1))," & vbCrLf
+    s = s & "                    solapan = Table.SelectRows(Estadias, (fe) =>" & vbCrLf
+    s = s & "                        List.Contains(filaActual[SegmentoValores], fe[Segmento])" & vbCrLf
+    s = s & "                        and List.Contains(filaActual[EmpresaValores], fe[Empresa])" & vbCrLf
+    s = s & "                        and fe[Inicio] < dayEnd" & vbCrLf
+    s = s & "                        and (fe[Fin] = null or fe[Fin] > dayStart)" & vbCrLf
+    s = s & "                    )," & vbCrLf
+    s = s & "                    presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {""IdPersona""})))," & vbCrLf
+    s = s & "                    maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)" & vbCrLf
+    s = s & "                in" & vbCrLf
+    s = s & "                    [Presentes = presentes, Maximo = maxSim[Maximo], HoraMaximo = maxSim[HoraMaximo]]" & vbCrLf
+    s = s & "            )," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            Expandido = Table.ExpandRecordColumn(ConResultado, ""Resultado"", {""Presentes"", ""Maximo"", ""HoraMaximo""}, {""Presentes_en_el_dia"", ""Maximo_simultaneo"", ""Hora_del_maximo""})," & vbCrLf
+    s = s & "            Renombrado = Table.RenameColumns(Expandido, {{""SegmentoLabel"", ""Segmento""}, {""EmpresaLabel"", ""Empresa""}})," & vbCrLf
+    s = s & "            Final = Table.SelectColumns(Renombrado, {""Fecha"", ""Segmento"", ""Empresa"", ""Presentes_en_el_dia"", ""Maximo_simultaneo"", ""Hora_del_maximo""})" & vbCrLf
+    s = s & "        in" & vbCrLf
+    s = s & "            Final" & vbCrLf
     s = s & "in" & vbCrLf
-    s = s & "    Final" & vbCrLf
+    s = s & "    Resultado" & vbCrLf
     Codigo_08_POB_Diario = s
 End Function
 
@@ -835,38 +866,49 @@ Private Function Codigo_09_POB_Horario() As String
     s = s & "    Estadias = #""06_Estadias""," & vbCrLf
     s = s & "    HorasFotoTexto = Excel.CurrentWorkbook(){[Name=""tHorasFoto""]}[Content][Hora]," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
-    s = s & "    FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
-    s = s & "    TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
-    s = s & "    FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
-    s = s & "    DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
-    s = s & "    DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
-    s = s & "    CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
-    s = s & "    Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
+    s = s & "    ColumnasSalida = type table [Fecha = date, Hora = text, Segmento = text, Empresa = text, POB = Int64.Type]," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
-    s = s & "    TablaHoras = Table.FromList(HorasFotoTexto, Splitter.SplitByNothing(), {""Hora""})," & vbCrLf
-    s = s & "    ConHoras = Table.AddColumn(TablaDias, ""H"", each TablaHoras)," & vbCrLf
-    s = s & "    Grilla = Table.ExpandTableColumn(ConHoras, ""H"", {""Hora""})," & vbCrLf
-    s = s & "    ConInstante = Table.AddColumn(Grilla, ""Instante"", (fila) =>" & vbCrLf
+    s = s & "    Salida =" & vbCrLf
+    s = s & "        // Sin estadías todavía (mes sin datos, o ninguna marca válida): no" & vbCrLf
+    s = s & "        // hay rango de fechas que armar, se devuelve la tabla vacía." & vbCrLf
+    s = s & "        if Table.IsEmpty(Estadias) then" & vbCrLf
+    s = s & "            #table(ColumnasSalida, {})" & vbCrLf
+    s = s & "        else" & vbCrLf
     s = s & "        let" & vbCrLf
-    s = s & "            partes = Text.Split(fila[Hora], "":"")," & vbCrLf
-    s = s & "            h = Number.FromText(partes{0})," & vbCrLf
-    s = s & "            m = Number.FromText(partes{1})" & vbCrLf
+    s = s & "            FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
+    s = s & "            FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
+    s = s & "            TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
+    s = s & "            FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
+    s = s & "            DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
+    s = s & "            DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
+    s = s & "            CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
+    s = s & "            Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
+    s = s & "            TablaHoras = Table.FromList(HorasFotoTexto, Splitter.SplitByNothing(), {""Hora""})," & vbCrLf
+    s = s & "            ConHoras = Table.AddColumn(TablaDias, ""H"", each TablaHoras)," & vbCrLf
+    s = s & "            Grilla = Table.ExpandTableColumn(ConHoras, ""H"", {""Hora""})," & vbCrLf
+    s = s & "            ConInstante = Table.AddColumn(Grilla, ""Instante"", (fila) =>" & vbCrLf
+    s = s & "                let" & vbCrLf
+    s = s & "                    partes = Text.Split(fila[Hora], "":"")," & vbCrLf
+    s = s & "                    h = Number.FromText(partes{0})," & vbCrLf
+    s = s & "                    m = Number.FromText(partes{1})" & vbCrLf
+    s = s & "                in" & vbCrLf
+    s = s & "                    fila[Fecha] & #time(h, m, 0)" & vbCrLf
+    s = s & "            )," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            // Por cada instante de la grilla, quiénes están adentro (Inicio <= instante < Fin)." & vbCrLf
+    s = s & "            ConPresentes = Table.AddColumn(ConInstante, ""Presentes"", (fila) =>" & vbCrLf
+    s = s & "                Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))" & vbCrLf
+    s = s & "            )," & vbCrLf
+    s = s & "            Expandido = Table.ExpandTableColumn(ConPresentes, ""Presentes"", {""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
+    s = s & "            Presencia = Table.SelectColumns(Expandido, {""Fecha"", ""Hora"", ""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            Resultado = #""07_fnExpandirGrupos""(Presencia, {""Fecha"", ""Hora""}, ""POB"")" & vbCrLf
     s = s & "        in" & vbCrLf
-    s = s & "            fila[Fecha] & #time(h, m, 0)" & vbCrLf
-    s = s & "    )," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    // Por cada instante de la grilla, quiénes están adentro (Inicio <= instante < Fin)." & vbCrLf
-    s = s & "    ConPresentes = Table.AddColumn(ConInstante, ""Presentes"", (fila) =>" & vbCrLf
-    s = s & "        Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))" & vbCrLf
-    s = s & "    )," & vbCrLf
-    s = s & "    Expandido = Table.ExpandTableColumn(ConPresentes, ""Presentes"", {""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
-    s = s & "    Presencia = Table.SelectColumns(Expandido, {""Fecha"", ""Hora"", ""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    Resultado = #""07_fnExpandirGrupos""(Presencia, {""Fecha"", ""Hora""}, ""POB"")" & vbCrLf
+    s = s & "            Resultado" & vbCrLf
     s = s & "in" & vbCrLf
-    s = s & "    Resultado" & vbCrLf
+    s = s & "    Salida" & vbCrLf
     Codigo_09_POB_Horario = s
 End Function
 
@@ -887,36 +929,47 @@ Private Function Codigo_10_POB_Franjas() As String
     s = s & "        {{""Franja"", Text.Trim, type text}, {""HoraInicio"", Text.Trim, type text}, {""HoraCierre"", Text.Trim, type text}}" & vbCrLf
     s = s & "    )," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
-    s = s & "    FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
-    s = s & "    TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
-    s = s & "    FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
-    s = s & "    DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
-    s = s & "    DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
-    s = s & "    CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
-    s = s & "    Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
+    s = s & "    ColumnasSalida = type table [Fecha = date, Franja = text, Segmento = text, Empresa = text, POB = Int64.Type]," & vbCrLf
     s = s & "" & vbCrLf
-    s = s & "    TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
-    s = s & "    ConFranjas = Table.AddColumn(TablaDias, ""F"", each Franjas)," & vbCrLf
-    s = s & "    Grilla = Table.ExpandTableColumn(ConFranjas, ""F"", {""Franja"", ""HoraCierre""})," & vbCrLf
-    s = s & "    ConInstante = Table.AddColumn(Grilla, ""Instante"", (fila) =>" & vbCrLf
+    s = s & "    Salida =" & vbCrLf
+    s = s & "        // Sin estadías todavía (mes sin datos, o ninguna marca válida): no" & vbCrLf
+    s = s & "        // hay rango de fechas que armar, se devuelve la tabla vacía." & vbCrLf
+    s = s & "        if Table.IsEmpty(Estadias) then" & vbCrLf
+    s = s & "            #table(ColumnasSalida, {})" & vbCrLf
+    s = s & "        else" & vbCrLf
     s = s & "        let" & vbCrLf
-    s = s & "            partes = Text.Split(fila[HoraCierre], "":"")," & vbCrLf
-    s = s & "            h = Number.FromText(partes{0})," & vbCrLf
-    s = s & "            m = Number.FromText(partes{1})" & vbCrLf
+    s = s & "            FechaMinDatos = List.Min(Estadias[Inicio])," & vbCrLf
+    s = s & "            FinesNoNulos = List.RemoveNulls(Estadias[Fin])," & vbCrLf
+    s = s & "            TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos)," & vbCrLf
+    s = s & "            FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin})," & vbCrLf
+    s = s & "            DiaInicio = DateTime.Date(FechaMinDatos)," & vbCrLf
+    s = s & "            DiaFin = DateTime.Date(FechaMaxDatos)," & vbCrLf
+    s = s & "            CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1," & vbCrLf
+    s = s & "            Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _))," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {""Fecha""})," & vbCrLf
+    s = s & "            ConFranjas = Table.AddColumn(TablaDias, ""F"", each Franjas)," & vbCrLf
+    s = s & "            Grilla = Table.ExpandTableColumn(ConFranjas, ""F"", {""Franja"", ""HoraCierre""})," & vbCrLf
+    s = s & "            ConInstante = Table.AddColumn(Grilla, ""Instante"", (fila) =>" & vbCrLf
+    s = s & "                let" & vbCrLf
+    s = s & "                    partes = Text.Split(fila[HoraCierre], "":"")," & vbCrLf
+    s = s & "                    h = Number.FromText(partes{0})," & vbCrLf
+    s = s & "                    m = Number.FromText(partes{1})" & vbCrLf
+    s = s & "                in" & vbCrLf
+    s = s & "                    fila[Fecha] & #time(h, m, 0)" & vbCrLf
+    s = s & "            )," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            ConPresentes = Table.AddColumn(ConInstante, ""Presentes"", (fila) =>" & vbCrLf
+    s = s & "                Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))" & vbCrLf
+    s = s & "            )," & vbCrLf
+    s = s & "            Expandido = Table.ExpandTableColumn(ConPresentes, ""Presentes"", {""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
+    s = s & "            Presencia = Table.SelectColumns(Expandido, {""Fecha"", ""Franja"", ""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
+    s = s & "" & vbCrLf
+    s = s & "            Resultado = #""07_fnExpandirGrupos""(Presencia, {""Fecha"", ""Franja""}, ""POB"")" & vbCrLf
     s = s & "        in" & vbCrLf
-    s = s & "            fila[Fecha] & #time(h, m, 0)" & vbCrLf
-    s = s & "    )," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    ConPresentes = Table.AddColumn(ConInstante, ""Presentes"", (fila) =>" & vbCrLf
-    s = s & "        Table.SelectRows(Estadias, (fe) => fe[Inicio] <= fila[Instante] and (fe[Fin] = null or fe[Fin] > fila[Instante]))" & vbCrLf
-    s = s & "    )," & vbCrLf
-    s = s & "    Expandido = Table.ExpandTableColumn(ConPresentes, ""Presentes"", {""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
-    s = s & "    Presencia = Table.SelectColumns(Expandido, {""Fecha"", ""Franja"", ""IdPersona"", ""Segmento"", ""Empresa""})," & vbCrLf
-    s = s & "" & vbCrLf
-    s = s & "    Resultado = #""07_fnExpandirGrupos""(Presencia, {""Fecha"", ""Franja""}, ""POB"")" & vbCrLf
+    s = s & "            Resultado" & vbCrLf
     s = s & "in" & vbCrLf
-    s = s & "    Resultado" & vbCrLf
+    s = s & "    Salida" & vbCrLf
     Codigo_10_POB_Franjas = s
 End Function
 

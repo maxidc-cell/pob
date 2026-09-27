@@ -42,56 +42,71 @@ let
         in
             [Maximo = resultado[Maximo], HoraMaximo = resultado[HoraMaximo]],
 
-    Segmentos = List.Distinct(List.RemoveNulls(Estadias[Segmento])),
-    Empresas = List.Distinct(Estadias[Empresa]),
+    ColumnasSalida = type table [
+        Fecha = date, Segmento = text, Empresa = text,
+        Presentes_en_el_dia = Int64.Type, Maximo_simultaneo = Int64.Type, Hora_del_maximo = nullable datetime
+    ],
 
-    FechaMinDatos = List.Min(Estadias[Inicio]),
-    FinesNoNulos = List.RemoveNulls(Estadias[Fin]),
-    TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos),
-    FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin}),
-    DiaInicio = DateTime.Date(FechaMinDatos),
-    DiaFin = DateTime.Date(FechaMaxDatos),
-    CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1,
-    Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _)),
-
-    // Combos de Segmento: cada valor real + TOTAL (todos juntos).
-    CombosSegmento = List.Combine({
-        List.Transform(Segmentos, (s) => [Etiqueta = s, Valores = {s}]),
-        {[Etiqueta = "TOTAL", Valores = Segmentos]}
-    }),
-    // Combos de Empresa: cada valor real + TODAS (todas juntas).
-    CombosEmpresa = List.Combine({
-        List.Transform(Empresas, (e) => [Etiqueta = e, Valores = {e}]),
-        {[Etiqueta = "TODAS", Valores = Empresas]}
-    }),
-
-    TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
-    TablaSeg = Table.FromRecords(CombosSegmento),
-    TablaEmp = Table.FromRecords(CombosEmpresa),
-
-    ConSeg = Table.AddColumn(TablaDias, "Seg", each TablaSeg),
-    ExpSeg = Table.ExpandTableColumn(ConSeg, "Seg", {"Etiqueta", "Valores"}, {"SegmentoLabel", "SegmentoValores"}),
-    ConEmp = Table.AddColumn(ExpSeg, "Emp", each TablaEmp),
-    ExpEmp = Table.ExpandTableColumn(ConEmp, "Emp", {"Etiqueta", "Valores"}, {"EmpresaLabel", "EmpresaValores"}),
-
-    ConResultado = Table.AddColumn(ExpEmp, "Resultado", (filaActual) =>
+    Resultado =
+        // Sin estadías (mes sin datos todavía, o ninguna marca válida) no hay
+        // rango de fechas que armar: se devuelve la tabla vacía directamente,
+        // en vez de romper en el List.Min/Max sobre una lista vacía.
+        if Table.IsEmpty(Estadias) then
+            #table(ColumnasSalida, {})
+        else
         let
-            dayStart = DateTime.From(filaActual[Fecha]),
-            dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1)),
-            solapan = Table.SelectRows(Estadias, (fe) =>
-                List.Contains(filaActual[SegmentoValores], fe[Segmento])
-                and List.Contains(filaActual[EmpresaValores], fe[Empresa])
-                and fe[Inicio] < dayEnd
-                and (fe[Fin] = null or fe[Fin] > dayStart)
-            ),
-            presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {"IdPersona"}))),
-            maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)
-        in
-            [Presentes = presentes, Maximo = maxSim[Maximo], HoraMaximo = maxSim[HoraMaximo]]
-    ),
+            Segmentos = List.Distinct(List.RemoveNulls(Estadias[Segmento])),
+            Empresas = List.Distinct(Estadias[Empresa]),
 
-    Expandido = Table.ExpandRecordColumn(ConResultado, "Resultado", {"Presentes", "Maximo", "HoraMaximo"}, {"Presentes_en_el_dia", "Maximo_simultaneo", "Hora_del_maximo"}),
-    Renombrado = Table.RenameColumns(Expandido, {{"SegmentoLabel", "Segmento"}, {"EmpresaLabel", "Empresa"}}),
-    Final = Table.SelectColumns(Renombrado, {"Fecha", "Segmento", "Empresa", "Presentes_en_el_dia", "Maximo_simultaneo", "Hora_del_maximo"})
+            FechaMinDatos = List.Min(Estadias[Inicio]),
+            FinesNoNulos = List.RemoveNulls(Estadias[Fin]),
+            TopeFin = if List.IsEmpty(FinesNoNulos) then List.Max(Estadias[Inicio]) else List.Max(FinesNoNulos),
+            FechaMaxDatos = List.Max({List.Max(Estadias[Inicio]), TopeFin}),
+            DiaInicio = DateTime.Date(FechaMinDatos),
+            DiaFin = DateTime.Date(FechaMaxDatos),
+            CantidadDias = Duration.Days(DiaFin - DiaInicio) + 1,
+            Dias = List.Transform({0 .. CantidadDias - 1}, each Date.AddDays(DiaInicio, _)),
+
+            // Combos de Segmento: cada valor real + TOTAL (todos juntos).
+            CombosSegmento = List.Combine({
+                List.Transform(Segmentos, (s) => [Etiqueta = s, Valores = {s}]),
+                {[Etiqueta = "TOTAL", Valores = Segmentos]}
+            }),
+            // Combos de Empresa: cada valor real + TODAS (todas juntas).
+            CombosEmpresa = List.Combine({
+                List.Transform(Empresas, (e) => [Etiqueta = e, Valores = {e}]),
+                {[Etiqueta = "TODAS", Valores = Empresas]}
+            }),
+
+            TablaDias = Table.FromList(Dias, Splitter.SplitByNothing(), {"Fecha"}),
+            TablaSeg = Table.FromRecords(CombosSegmento),
+            TablaEmp = Table.FromRecords(CombosEmpresa),
+
+            ConSeg = Table.AddColumn(TablaDias, "Seg", each TablaSeg),
+            ExpSeg = Table.ExpandTableColumn(ConSeg, "Seg", {"Etiqueta", "Valores"}, {"SegmentoLabel", "SegmentoValores"}),
+            ConEmp = Table.AddColumn(ExpSeg, "Emp", each TablaEmp),
+            ExpEmp = Table.ExpandTableColumn(ConEmp, "Emp", {"Etiqueta", "Valores"}, {"EmpresaLabel", "EmpresaValores"}),
+
+            ConResultado = Table.AddColumn(ExpEmp, "Resultado", (filaActual) =>
+                let
+                    dayStart = DateTime.From(filaActual[Fecha]),
+                    dayEnd = DateTime.From(Date.AddDays(filaActual[Fecha], 1)),
+                    solapan = Table.SelectRows(Estadias, (fe) =>
+                        List.Contains(filaActual[SegmentoValores], fe[Segmento])
+                        and List.Contains(filaActual[EmpresaValores], fe[Empresa])
+                        and fe[Inicio] < dayEnd
+                        and (fe[Fin] = null or fe[Fin] > dayStart)
+                    ),
+                    presentes = Table.RowCount(Table.Distinct(Table.SelectColumns(solapan, {"IdPersona"}))),
+                    maxSim = fnMaximoSimultaneo(solapan, dayStart, dayEnd)
+                in
+                    [Presentes = presentes, Maximo = maxSim[Maximo], HoraMaximo = maxSim[HoraMaximo]]
+            ),
+
+            Expandido = Table.ExpandRecordColumn(ConResultado, "Resultado", {"Presentes", "Maximo", "HoraMaximo"}, {"Presentes_en_el_dia", "Maximo_simultaneo", "Hora_del_maximo"}),
+            Renombrado = Table.RenameColumns(Expandido, {{"SegmentoLabel", "Segmento"}, {"EmpresaLabel", "Empresa"}}),
+            Final = Table.SelectColumns(Renombrado, {"Fecha", "Segmento", "Empresa", "Presentes_en_el_dia", "Maximo_simultaneo", "Hora_del_maximo"})
+        in
+            Final
 in
-    Final
+    Resultado

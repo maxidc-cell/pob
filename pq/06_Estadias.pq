@@ -20,8 +20,22 @@
 let
     EventosValidos = #"05_Validos",
 
-    // --- 1) Checkpoints de fin de mes ("en vivo": hasta el momento del refresco) ---
-    FechaMin = List.Min(EventosValidos[FechaHora]),
+    ColumnasSalida = type table [
+        IdPersona = text, Segmento = text, Inicio = datetime, Fin = nullable datetime,
+        Motivo = text, Empresa = text
+    ],
+
+    Salida =
+        // Sin ninguna fichada válida (archivo de prueba vacío, o ningún
+        // evento de tEventosValidos todavía) no hay nada que procesar: se
+        // devuelve la tabla vacía en vez de calcular sobre listas vacías
+        // (List.Min de una lista vacía da null y rompe todo lo que sigue).
+        if Table.IsEmpty(EventosValidos) then
+            #table(ColumnasSalida, {})
+        else
+        let
+            // --- 1) Checkpoints de fin de mes ("en vivo": hasta el momento del refresco) ---
+            FechaMin = List.Min(EventosValidos[FechaHora]),
     Ahora = DateTime.LocalNow(),
     PrimerCandidato = Date.AddMonths(Date.StartOfMonth(DateTime.Date(FechaMin)), 1),
     Boundaries = List.Generate(
@@ -140,5 +154,7 @@ let
         type text
     ),
     Final = Table.Buffer(Table.RemoveColumns(ConEmpresa, {"_emp"}))
+        in
+            Final
 in
-    Final
+    Salida
