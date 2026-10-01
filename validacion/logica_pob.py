@@ -162,6 +162,19 @@ def limpiar_datos(df_raw: pd.DataFrame):
     return df.sort_values(["FechaHora"], kind="stable").reset_index(drop=True), control
 
 
+def calcular_datos_persona(df_todo: pd.DataFrame, empresa_por_persona: pd.Series) -> pd.DataFrame:
+    """Último Apellido/Nombre informados por persona (por FechaHora), más su
+    Empresa (de calcular_empresa_por_persona). Devuelve un DataFrame con
+    columnas IdPersona, Apellido, Nombre, Empresa — pensado para cruzarse
+    (merge on="IdPersona") contra tablas de detalle como Foto_13_22 o
+    POB_Periodos.
+    """
+    df = df_todo.sort_values("FechaHora")
+    datos = df.groupby("IdPersona")[["Apellido", "Nombre"]].last().reset_index()
+    datos["Empresa"] = datos["IdPersona"].map(empresa_por_persona).fillna("SIN EMPRESA")
+    return datos
+
+
 def calcular_empresa_por_persona(df_todo: pd.DataFrame) -> pd.Series:
     """Última empresa informada por persona en el período (por FechaHora).
 
@@ -458,6 +471,70 @@ def calcular_pob_franjas(estadias: pd.DataFrame, franjas=cfg.FRANJAS) -> pd.Data
     return pd.DataFrame(filas)
 
 
+def _presentes_en_ventana(estadias: pd.DataFrame, ventana_inicio: pd.Timestamp, ventana_fin: pd.Timestamp) -> pd.Series:
+    """Máscara booleana: estadías que SOLAPAN la ventana [ventana_inicio, ventana_fin]
+    (estuvo adentro en algún momento de la ventana), a diferencia de
+    _presentes_en_instante que es una foto puntual."""
+    return (estadias["Inicio"] <= ventana_fin) & (estadias["Fin"].isna() | (estadias["Fin"] > ventana_inicio))
+
+
+def calcular_foto_detalle(estadias: pd.DataFrame, datos_persona: pd.DataFrame,
+                           horas=cfg.HORAS_FOTO_DETALLE) -> pd.DataFrame:
+    """Detalle (una fila por persona) de quién está presente en cada hora
+    puntual de `horas`, para armar una tabla dinámica. A diferencia de
+    calcular_pob_horario (que sólo cuenta), acá se listan IdPersona,
+    Apellido, Nombre, Segmento y Empresa de cada presente.
+    """
+    dias = _rango_dias(estadias)
+    partes = []
+    for dia in dias:
+        for hora_txt in horas:
+            h, m = (int(x) for x in hora_txt.split(":"))
+            instante = dia + pd.Timedelta(hours=h, minutes=m)
+            presentes = estadias.loc[_presentes_en_instante(estadias, instante), ["IdPersona", "Segmento"]]
+            presentes = presentes.drop_duplicates().merge(datos_persona, on="IdPersona", how="left")
+            presentes.insert(0, "Hora", hora_txt)
+            presentes.insert(0, "Fecha", dia)
+            partes.append(presentes)
+    columnas = ["Fecha", "Hora", "IdPersona", "Apellido", "Nombre", "Segmento", "Empresa"]
+    if not partes:
+        return pd.DataFrame(columns=columnas)
+    out = pd.concat(partes, ignore_index=True)
+    out["Empresa"] = out["Empresa"].fillna("SIN EMPRESA")
+    return out[columnas].sort_values(["Fecha", "Hora", "Segmento", "Apellido"]).reset_index(drop=True)
+
+
+def calcular_periodos_detalle(estadias: pd.DataFrame, datos_persona: pd.DataFrame,
+                               estadios=cfg.ESTADIOS) -> pd.DataFrame:
+    """Detalle (una fila por persona) de quién estuvo presente en algún
+    momento de cada estadio del día (Mañana/Tarde/Noche/Madrugada), para
+    armar una tabla dinámica. Usa solapamiento de ventana (_presentes_en_ventana),
+    no una foto puntual: "estuvo adentro en algún instante de esa franja".
+    """
+    dias = _rango_dias(estadias)
+    partes = []
+    for dia in dias:
+        for estadio in estadios:
+            hi, mi = (int(x) for x in estadio["HoraInicio"].split(":"))
+            hf, mf = (int(x) for x in estadio["HoraFin"].split(":"))
+            ventana_inicio = dia + pd.Timedelta(hours=hi, minutes=mi)
+            ventana_fin = dia + pd.Timedelta(hours=hf, minutes=mf)
+            presentes = estadias.loc[
+                _presentes_en_ventana(estadias, ventana_inicio, ventana_fin), ["IdPersona", "Segmento"]
+            ]
+            presentes = presentes.drop_duplicates().merge(datos_persona, on="IdPersona", how="left")
+            presentes.insert(0, "Orden", estadio["Orden"])
+            presentes.insert(0, "Estadio", estadio["Estadio"])
+            presentes.insert(0, "Fecha", dia)
+            partes.append(presentes)
+    columnas = ["Fecha", "Estadio", "Orden", "IdPersona", "Apellido", "Nombre", "Segmento", "Empresa"]
+    if not partes:
+        return pd.DataFrame(columns=columnas)
+    out = pd.concat(partes, ignore_index=True)
+    out["Empresa"] = out["Empresa"].fillna("SIN EMPRESA")
+    return out[columnas].sort_values(["Fecha", "Orden", "Segmento", "Apellido"]).reset_index(drop=True)
+
+
 def calcular_comedor(df_validos: pd.DataFrame, empresa_por_persona: pd.Series,
                       turnos=cfg.TURNOS_COMEDOR) -> pd.DataFrame:
     """Cuenta personas distintas con marca de COMEDOR dentro de cada turno (extremos inclusivos).
@@ -535,11 +612,13 @@ def procesar_todo(carpeta: str, ahora: Optional[pd.Timestamp] = None):
     df_validos = df_todo.loc[df_todo["EventoValido"]].copy()
     estadias, control_estadias = construir_estadias(df_validos, ahora=ahora)
     estadias["Empresa"] = estadias["IdPersona"].map(empresa_por_persona).fillna("SIN EMPRESA")
+    datos_persona = calcular_datos_persona(df_todo, empresa_por_persona)
 
     return {
         "df_todo": df_todo,
         "df_validos": df_validos,
         "empresa_por_persona": empresa_por_persona,
+        "datos_persona": datos_persona,
         "estadias": estadias,
         "control_limpieza": control_limpieza,
         "control_estadias": control_estadias,
@@ -547,6 +626,8 @@ def procesar_todo(carpeta: str, ahora: Optional[pd.Timestamp] = None):
         "POB_Diario": calcular_pob_diario(estadias),
         "POB_Horario": calcular_pob_horario(estadias),
         "POB_Franjas": calcular_pob_franjas(estadias),
+        "Foto_13_22": calcular_foto_detalle(estadias, datos_persona),
+        "POB_Periodos": calcular_periodos_detalle(estadias, datos_persona),
         "Comedor": calcular_comedor(df_validos, empresa_por_persona),
         "Control_Calidad": calcular_control_calidad(
             control_limpieza, control_estadias, empresa_por_persona, n_archivos

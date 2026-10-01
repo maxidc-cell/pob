@@ -31,6 +31,8 @@ def main(carpeta_data: str = "data", archivo_salida: str = "validacion/resultado
         resultado["POB_Diario"].to_excel(writer, sheet_name="POB_Diario", index=False)
         resultado["POB_Horario"].to_excel(writer, sheet_name="POB_Horario", index=False)
         resultado["POB_Franjas"].to_excel(writer, sheet_name="POB_Franjas", index=False)
+        resultado["Foto_13_22"].to_excel(writer, sheet_name="Foto_13_22", index=False)
+        resultado["POB_Periodos"].to_excel(writer, sheet_name="POB_Periodos", index=False)
         resultado["Comedor"].to_excel(writer, sheet_name="Comedor", index=False)
         resultado["Control_Calidad"].to_excel(writer, sheet_name="Control_Calidad", index=False)
         resultado["estadias"].to_excel(writer, sheet_name="Estadias", index=False)

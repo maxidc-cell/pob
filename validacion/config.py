@@ -38,6 +38,24 @@ FRANJAS = [
 ]
 
 # ---------------------------------------------------------------------------
+# tHorasFotoDetalle: horas puntuales para el reporte de detalle "Foto_13_22"
+# (listado de personas, no sólo el conteo de tHorasFoto/POB_Horario).
+# ---------------------------------------------------------------------------
+HORAS_FOTO_DETALLE = ["13:00", "22:00"]
+
+# ---------------------------------------------------------------------------
+# tEstadios: franjas de 4 estadios del día para el reporte POB_Periodos.
+# "Presente en el estadio" = estuvo dentro del yacimiento en algún momento de
+# esa ventana (solapamiento), no una foto puntual.
+# ---------------------------------------------------------------------------
+ESTADIOS = [
+    {"Estadio": "Mañana", "HoraInicio": "07:00", "HoraFin": "12:00", "Orden": 1},
+    {"Estadio": "Tarde", "HoraInicio": "12:01", "HoraFin": "19:00", "Orden": 2},
+    {"Estadio": "Noche", "HoraInicio": "19:01", "HoraFin": "23:59", "Orden": 3},
+    {"Estadio": "Madrugada", "HoraInicio": "00:00", "HoraFin": "06:59", "Orden": 4},
+]
+
+# ---------------------------------------------------------------------------
 # tTurnosComedor (extremos inclusivos)
 # ---------------------------------------------------------------------------
 TURNOS_COMEDOR = [

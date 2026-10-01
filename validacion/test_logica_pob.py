@@ -309,6 +309,82 @@ def test_comedor_extremos_inclusivos_y_fuera_de_turno_se_ignora():
     assert almuerzo_total.iloc[0]["Personas_unicas"] == 2  # P11 (12:00) y P12 (14:00, borde inclusive)
 
 
+# ===========================================================================
+# Foto_13_22: detalle de personas presentes en horas puntuales
+# ===========================================================================
+
+def _datos_persona(filas):
+    """Arma un DataFrame de personas: (IdPersona, Apellido, Nombre, Empresa)."""
+    return pd.DataFrame(filas, columns=["IdPersona", "Apellido", "Nombre", "Empresa"])
+
+
+def test_foto_detalle_lista_presentes_y_excluye_ausentes():
+    estadias = pd.DataFrame([
+        {"IdPersona": "P1", "Segmento": "AP", "Inicio": _ts("2026-09-01 07:00"),
+         "Fin": _ts("2026-09-01 20:00"), "Motivo": "Normal"},
+        {"IdPersona": "P2", "Segmento": "AP", "Inicio": _ts("2026-09-01 07:00"),
+         "Fin": _ts("2026-09-01 12:00"), "Motivo": "Normal"},  # ya se fue antes de las 13
+    ])
+    datos = _datos_persona([
+        ("P1", "PEREZ", "JUAN", "ACME"),
+        ("P2", "GOMEZ", "ANA", "ACME"),
+    ])
+    detalle = lp.calcular_foto_detalle(estadias, datos, horas=["13:00"])
+    assert list(detalle["IdPersona"]) == ["P1"]
+    assert detalle.iloc[0]["Apellido"] == "PEREZ"
+
+
+def test_foto_detalle_persona_sin_datos_queda_sin_empresa():
+    estadias = pd.DataFrame([
+        {"IdPersona": "P9", "Segmento": "AP", "Inicio": _ts("2026-09-01 07:00"),
+         "Fin": pd.NaT, "Motivo": "Abierta (sigue adentro)"},
+    ])
+    datos = _datos_persona([])  # padrón vacío: la persona no tiene Apellido/Empresa cargados
+    detalle = lp.calcular_foto_detalle(estadias, datos, horas=["13:00"])
+    assert detalle.iloc[0]["Empresa"] == "SIN EMPRESA"
+
+
+# ===========================================================================
+# POB_Periodos: detalle de personas por estadio (solapamiento de ventana)
+# ===========================================================================
+
+def test_periodos_detalle_cuenta_presencia_parcial_en_la_ventana():
+    """Entra a las 11:30 y sale a las 13:00: sólo pisa la mitad de la franja
+    Mañana (07-12), pero como es solapamiento (no foto puntual) igual cuenta."""
+    estadias = pd.DataFrame([
+        {"IdPersona": "P1", "Segmento": "AP", "Inicio": _ts("2026-09-01 11:30"),
+         "Fin": _ts("2026-09-01 13:00"), "Motivo": "Normal"},
+    ])
+    datos = _datos_persona([("P1", "PEREZ", "JUAN", "ACME")])
+    estadios = [{"Estadio": "Mañana", "HoraInicio": "07:00", "HoraFin": "12:00", "Orden": 1}]
+    detalle = lp.calcular_periodos_detalle(estadias, datos, estadios=estadios)
+    assert list(detalle["IdPersona"]) == ["P1"]
+
+
+def test_periodos_detalle_no_cuenta_si_no_solapa_la_ventana():
+    estadias = pd.DataFrame([
+        {"IdPersona": "P1", "Segmento": "AP", "Inicio": _ts("2026-09-01 13:00"),
+         "Fin": _ts("2026-09-01 15:00"), "Motivo": "Normal"},  # toda la estadía es después de la Mañana
+    ])
+    datos = _datos_persona([("P1", "PEREZ", "JUAN", "ACME")])
+    estadios = [{"Estadio": "Mañana", "HoraInicio": "07:00", "HoraFin": "12:00", "Orden": 1}]
+    detalle = lp.calcular_periodos_detalle(estadias, datos, estadios=estadios)
+    assert detalle.empty
+
+
+def test_periodos_detalle_no_duplica_persona_que_entra_y_sale_varias_veces_en_la_ventana():
+    estadias = pd.DataFrame([
+        {"IdPersona": "P1", "Segmento": "AP", "Inicio": _ts("2026-09-01 08:00"),
+         "Fin": _ts("2026-09-01 09:00"), "Motivo": "Normal"},
+        {"IdPersona": "P1", "Segmento": "AP", "Inicio": _ts("2026-09-01 10:00"),
+         "Fin": _ts("2026-09-01 11:00"), "Motivo": "Normal"},
+    ])
+    datos = _datos_persona([("P1", "PEREZ", "JUAN", "ACME")])
+    estadios = [{"Estadio": "Mañana", "HoraInicio": "07:00", "HoraFin": "12:00", "Orden": 1}]
+    detalle = lp.calcular_periodos_detalle(estadias, datos, estadios=estadios)
+    assert len(detalle) == 1
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-v"]))
